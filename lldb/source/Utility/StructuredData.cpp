@@ -66,6 +66,9 @@ static StructuredData::ObjectSP ParseJSONValue(json::Value &value) {
   if (auto i = value.getAsInteger())
     return std::make_shared<StructuredData::Integer>(*i);
 
+  // TODO: how do we decide here. integer is unsigned
+  // but I need a signed?
+
   if (auto d = value.getAsNumber())
     return std::make_shared<StructuredData::Float>(*d);
 
@@ -140,6 +143,10 @@ void StructuredData::Array::Serialize(json::OStream &s) const {
 }
 
 void StructuredData::Integer::Serialize(json::OStream &s) const {
+  s.value(static_cast<int64_t>(m_value));
+}
+
+void StructuredData::SignedInteger::Serialize(json::OStream &s) const {
   s.value(static_cast<int64_t>(m_value));
 }
 

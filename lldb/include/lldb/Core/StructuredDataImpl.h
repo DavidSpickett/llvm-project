@@ -132,6 +132,11 @@ public:
     return (m_data_sp ? m_data_sp->GetIntegerValue(fail_value) : fail_value);
   }
 
+  int64_t GetSignedIntegerValue(int64_t fail_value = 0) const {
+    return (m_data_sp ? m_data_sp->GetSignedIntegerValue(fail_value)
+                      : fail_value);
+  }
+
   double GetFloatValue(double fail_value = 0.0) const {
     return (m_data_sp ? m_data_sp->GetFloatValue(fail_value) : fail_value);
   }

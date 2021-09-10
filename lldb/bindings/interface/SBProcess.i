@@ -436,6 +436,23 @@ public:
     lldb::SBError
     DeallocateMemory(lldb::addr_t ptr);
 
+    %feature("autodoc", "
+    TODO: doc me!") GetMemoryTagManagers;
+
+    lldb::SBMemoryTagManagerList
+    GetMemoryTagManagers() const;
+
+    lldb::SBError
+    ReadMemoryTags(int32_t type, const lldb::SBVMRange &range,
+             lldb::SBStructuredData& result) const;
+
+    lldb::SBError
+    WriteMemoryTags(int32_t type, const lldb::SBVMRange &range,
+             const lldb::SBStructuredData& tags);
+
+    lldb::addr_t
+    FixDataAddress(addr_t addr, lldb::SBError &error);
+
     STRING_EXTENSION(SBProcess)
 
 #ifdef SWIGPYTHON

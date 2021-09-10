@@ -11,9 +11,11 @@
 
 #include "lldb/API/SBDefines.h"
 #include "lldb/API/SBError.h"
+#include "lldb/API/SBMemoryTagManagerList.h"
 #include "lldb/API/SBProcessInfo.h"
 #include "lldb/API/SBQueue.h"
 #include "lldb/API/SBTarget.h"
+#include "lldb/API/SBVMRange.h"
 #include <cstdio>
 
 namespace lldb {
@@ -408,6 +410,23 @@ public:
   ///     deallocating.
   ///
   lldb::SBError DeallocateMemory(lldb::addr_t ptr);
+
+  // TODO: doc me
+  lldb::SBMemoryTagManagerList GetMemoryTagManagers() const;
+
+  // TODO: doc me
+  lldb::SBError
+  ReadMemoryTags(int32_t type, const lldb::SBVMRange &range,
+                 // TODO: not sure if we want this or some flat list here?
+                 lldb::SBStructuredData &result) const;
+
+  // TODO: doc me
+  lldb::SBError WriteMemoryTags(int32_t type, const lldb::SBVMRange &range,
+                                const lldb::SBStructuredData &tags);
+
+  // TODO: this is probably better as some SBABI with a GetABI method here,
+  // but for now I only need this one call.
+  lldb::addr_t FixDataAddress(addr_t addr, lldb::SBError &error);
 
 protected:
   friend class SBAddress;

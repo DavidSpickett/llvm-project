@@ -52,6 +52,7 @@ public:
   class Object;
   class Array;
   class Integer;
+  class SignedInteger;
   class Float;
   class Boolean;
   class String;
@@ -61,6 +62,7 @@ public:
   typedef std::shared_ptr<Object> ObjectSP;
   typedef std::shared_ptr<Array> ArraySP;
   typedef std::shared_ptr<Integer> IntegerSP;
+  typedef std::shared_ptr<SignedInteger> SignedIntegerSP;
   typedef std::shared_ptr<Float> FloatSP;
   typedef std::shared_ptr<Boolean> BooleanSP;
   typedef std::shared_ptr<String> StringSP;
@@ -103,6 +105,18 @@ public:
     uint64_t GetIntegerValue(uint64_t fail_value = 0) {
       Integer *integer = GetAsInteger();
       return ((integer != nullptr) ? integer->GetValue() : fail_value);
+    }
+
+    SignedInteger *GetAsSignedInteger() {
+      return ((m_type == lldb::eStructuredDataTypeSignedInteger)
+                  ? static_cast<SignedInteger *>(this)
+                  : nullptr);
+    }
+
+    int64_t GetSignedIntegerValue(int64_t fail_value = 0) {
+      SignedInteger *signed_integer = GetAsSignedInteger();
+      return ((signed_integer != nullptr) ? signed_integer->GetValue()
+                                          : fail_value);
     }
 
     Float *GetAsFloat() {
@@ -213,6 +227,28 @@ public:
       return success;
     }
 
+    template <class SignedIntType>
+    bool GetItemAtIndexAsSignedInteger(size_t idx,
+                                       SignedIntType &result) const {
+      ObjectSP value_sp = GetItemAtIndex(idx);
+      if (value_sp.get()) {
+        if (auto signed_int_value = value_sp->GetAsSignedInteger()) {
+          result = static_cast<SignedIntType>(signed_int_value->GetValue());
+          return true;
+        }
+      }
+      return false;
+    }
+
+    template <class SignedIntType>
+    bool GetItemAtIndexAsSignedInteger(size_t idx, SignedIntType &result,
+                                       SignedIntType default_val) const {
+      bool success = GetItemAtIndexAsSignedInteger(idx, result);
+      if (!success)
+        result = default_val;
+      return success;
+    }
+
     bool GetItemAtIndexAsString(size_t idx, llvm::StringRef &result) const {
       ObjectSP value_sp = GetItemAtIndex(idx);
       if (value_sp.get()) {
@@ -297,6 +333,23 @@ public:
 
   protected:
     uint64_t m_value;
+  };
+
+  class SignedInteger : public Object {
+  public:
+    SignedInteger(int64_t i = 0)
+        : Object(lldb::eStructuredDataTypeSignedInteger), m_value(i) {}
+
+    ~SignedInteger() override = default;
+
+    void SetValue(int64_t value) { m_value = value; }
+
+    int64_t GetValue() { return m_value; }
+
+    void Serialize(llvm::json::OStream &s) const override;
+
+  protected:
+    int64_t m_value;
   };
 
   class Float : public Object {
@@ -409,6 +462,7 @@ public:
       }
       return success;
     }
+
     template <class IntType>
     bool GetValueForKeyAsInteger(llvm::StringRef key, IntType &result) const {
       ObjectSP value_sp = GetValueForKey(key);
@@ -425,6 +479,29 @@ public:
     bool GetValueForKeyAsInteger(llvm::StringRef key, IntType &result,
                                  IntType default_val) const {
       bool success = GetValueForKeyAsInteger<IntType>(key, result);
+      if (!success)
+        result = default_val;
+      return success;
+    }
+
+    template <class SignedIntType>
+    bool GetValueForKeyAsSignedInteger(llvm::StringRef key,
+                                       SignedIntType &result) const {
+      ObjectSP value_sp = GetValueForKey(key);
+      if (value_sp) {
+        if (auto signed_int_value = value_sp->GetAsSignedInteger()) {
+          result = static_cast<SignedIntType>(signed_int_value->GetValue());
+          return true;
+        }
+      }
+      return false;
+    }
+
+    template <class SignedIntType>
+    bool GetValueForKeyAsSignedInteger(llvm::StringRef key,
+                                       SignedIntType &result,
+                                       SignedIntType default_val) const {
+      bool success = GetValueForKeyAsSignedInteger<SignedIntType>(key, result);
       if (!success)
         result = default_val;
       return success;
@@ -508,6 +585,10 @@ public:
 
     void AddIntegerItem(llvm::StringRef key, uint64_t value) {
       AddItem(key, std::make_shared<Integer>(value));
+    }
+
+    void AddSignedIntegerItem(llvm::StringRef key, int64_t value) {
+      AddItem(key, std::make_shared<SignedInteger>(value));
     }
 
     void AddFloatItem(llvm::StringRef key, double value) {

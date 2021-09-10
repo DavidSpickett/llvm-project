@@ -98,6 +98,9 @@ public:
   // but other architectures can overlap those values.
   virtual int32_t GetAllocationTagType() const = 0;
 
+  // TODO: doc me!
+  virtual ConstString GetTagTypeName() const = 0;
+
   // Return the number of bytes a single tag will be packed into during
   // transport. For example an MTE tag is 4 bits but occupies 1 byte during
   // transport.
@@ -143,6 +146,9 @@ public:
   virtual llvm::Expected<std::vector<lldb::addr_t>>
   RepeatTagsForRange(const std::vector<lldb::addr_t> &tags,
                      TagRange range) const = 0;
+
+  // TODO: this should be implemented in its own file in the base class
+  virtual void Dump(Stream *s) const = 0;
 
   virtual ~MemoryTagManager() {}
 };

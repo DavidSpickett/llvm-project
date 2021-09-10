@@ -1063,6 +1063,7 @@ StructuredDataType
 .. py:data:: eStructuredDataTypeGeneric
 .. py:data:: eStructuredDataTypeArray
 .. py:data:: eStructuredDataTypeInteger
+.. py:data:: eStructuredDataTypeSignedInteger
 .. py:data:: eStructuredDataTypeFloat
 .. py:data:: eStructuredDataTypeBoolean
 .. py:data:: eStructuredDataTypeString

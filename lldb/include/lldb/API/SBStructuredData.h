@@ -65,6 +65,10 @@ public:
   /// Return the integer value if this data structure is an integer type.
   uint64_t GetIntegerValue(uint64_t fail_value = 0) const;
 
+  /// Return the signed integer value if this data structure is a signed integer
+  /// type.
+  int64_t GetSignedIntegerValue(int64_t fail_value = 0) const;
+
   /// Return the floating point value if this data structure is a floating
   /// type.
   double GetFloatValue(double fail_value = 0.0) const;

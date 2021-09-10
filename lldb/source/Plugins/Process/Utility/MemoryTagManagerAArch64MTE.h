@@ -10,6 +10,7 @@
 #define LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_MEMORYTAGMANAGERAARCH64MTE_H
 
 #include "lldb/Target/MemoryTagManager.h"
+#include "lldb/Utility/Stream.h"
 
 namespace lldb_private {
 
@@ -24,6 +25,7 @@ public:
 
   lldb::addr_t GetGranuleSize() const override;
   int32_t GetAllocationTagType() const override;
+  ConstString GetTagTypeName() const override;
   size_t GetTagSizeInBytes() const override;
 
   lldb::addr_t GetLogicalTag(lldb::addr_t addr) const override;
@@ -50,6 +52,8 @@ public:
   llvm::Expected<std::vector<lldb::addr_t>>
   RepeatTagsForRange(const std::vector<lldb::addr_t> &tags,
                      TagRange range) const override;
+
+  void Dump(Stream *s) const override;
 };
 
 } // namespace lldb_private

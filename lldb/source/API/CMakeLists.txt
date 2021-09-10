@@ -51,6 +51,8 @@ add_lldb_library(liblldb SHARED ${option_framework}
   SBListener.cpp
   SBMemoryRegionInfo.cpp
   SBMemoryRegionInfoList.cpp
+  SBMemoryTagManager.cpp
+  SBMemoryTagManagerList.cpp
   SBModule.cpp
   SBModuleSpec.cpp
   SBPlatform.cpp
@@ -83,6 +85,8 @@ add_lldb_library(liblldb SHARED ${option_framework}
   SBValue.cpp
   SBValueList.cpp
   SBVariablesOptions.cpp
+  SBVMRange.cpp
+  SBVMRangeList.cpp
   SBWatchpoint.cpp
   SBUnixSignals.cpp
   SystemInitializerFull.cpp

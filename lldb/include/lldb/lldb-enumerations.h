@@ -787,7 +787,9 @@ enum StructuredDataType {
   eStructuredDataTypeNull = 0,
   eStructuredDataTypeGeneric,
   eStructuredDataTypeArray,
+  // TODO: is this order part of some ABI?
   eStructuredDataTypeInteger,
+  eStructuredDataTypeSignedInteger,
   eStructuredDataTypeFloat,
   eStructuredDataTypeBoolean,
   eStructuredDataTypeString,

@@ -43,6 +43,11 @@ int32_t MemoryTagManagerAArch64MTE::GetAllocationTagType() const {
   return eMTE_allocation;
 }
 
+ConstString MemoryTagManagerAArch64MTE::GetTagTypeName() const {
+  static ConstString type_name("MTE");
+  return type_name;
+}
+
 size_t MemoryTagManagerAArch64MTE::GetTagSizeInBytes() const { return 1; }
 
 MemoryTagManagerAArch64MTE::TagRange
@@ -288,4 +293,9 @@ MemoryTagManagerAArch64MTE::RepeatTagsForRange(
   }
 
   return new_tags;
+}
+
+// TODO: move to own file in base class
+void MemoryTagManagerAArch64MTE::Dump(Stream *s) const {
+  s->Printf("Memory tag manager for %s tags", GetTagTypeName().AsCString());
 }

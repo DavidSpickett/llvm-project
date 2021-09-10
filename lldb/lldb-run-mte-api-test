@@ -1,0 +1,6 @@
+platform select remote-linux
+platform connect connect://192.168.53.76:54321
+file ./lldb-test-build.noindex/linux/aarch64/mte_tag_access/TestAArch64LinuxMTEMemoryTagAccess.test_mte_tag_write/a.out
+b main.c:96
+run
+script -- import test_memtag

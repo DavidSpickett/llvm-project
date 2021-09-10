@@ -75,6 +75,7 @@ protected:
   friend class SBLaunchInfo;
   friend class SBLineEntry;
   friend class SBMemoryRegionInfo;
+  friend class SBMemoryTagManager;
   friend class SBModule;
   friend class SBModuleSpec;
   friend class SBModuleSpecList;
@@ -93,6 +94,7 @@ protected:
   friend class SBTypeMemberFunction;
   friend class SBTypeMember;
   friend class SBValue;
+  friend class SBVMRange;
   friend class SBWatchpoint;
 
   lldb_private::Stream *operator->();

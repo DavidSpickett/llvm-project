@@ -168,6 +168,11 @@ uint64_t SBStructuredData::GetIntegerValue(uint64_t fail_value) const {
   return m_impl_up->GetIntegerValue(fail_value);
 }
 
+int64_t SBStructuredData::GetSignedIntegerValue(int64_t fail_value) const {
+  // TODO: INSTRUMENT VA?
+  return m_impl_up->GetSignedIntegerValue(fail_value);
+}
+
 double SBStructuredData::GetFloatValue(double fail_value) const {
   LLDB_INSTRUMENT_VA(this, fail_value);
 

@@ -19,16 +19,20 @@
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StructuredDataImpl.h"
+#include "lldb/Target/ABI.h"
 #include "lldb/Target/MemoryRegionInfo.h"
+#include "lldb/Target/MemoryTagManager.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/SystemRuntime.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/Args.h"
+#include "lldb/Utility/Endian.h"
 #include "lldb/Utility/ProcessInfo.h"
 #include "lldb/Utility/State.h"
 #include "lldb/Utility/Stream.h"
+#include "lldb/Utility/VMRange.h"
 
 #include "lldb/API/SBBroadcaster.h"
 #include "lldb/API/SBCommandReturnObject.h"
@@ -38,6 +42,7 @@
 #include "lldb/API/SBFileSpec.h"
 #include "lldb/API/SBMemoryRegionInfo.h"
 #include "lldb/API/SBMemoryRegionInfoList.h"
+#include "lldb/API/SBMemoryTagManager.h"
 #include "lldb/API/SBStream.h"
 #include "lldb/API/SBStringList.h"
 #include "lldb/API/SBStructuredData.h"
@@ -45,6 +50,8 @@
 #include "lldb/API/SBThreadCollection.h"
 #include "lldb/API/SBTrace.h"
 #include "lldb/API/SBUnixSignals.h"
+#include "lldb/API/SBValue.h"
+#include "lldb/API/SBValueList.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -1253,4 +1260,159 @@ lldb::SBError SBProcess::DeallocateMemory(lldb::addr_t ptr) {
     sb_error.SetErrorString("SBProcess is invalid");
   }
   return sb_error;
+}
+
+lldb::SBMemoryTagManagerList SBProcess::GetMemoryTagManagers() const {
+  SBMemoryTagManagerList managers;
+
+  // TODO: return error for no process?
+  ProcessSP process_sp(GetSP());
+  if (!process_sp)
+    return managers;
+
+  llvm::Expected<const MemoryTagManager *> tag_manager_or_err =
+      process_sp->GetMemoryTagManager();
+  if (!tag_manager_or_err) {
+    llvm::consumeError(tag_manager_or_err.takeError());
+    return managers;
+  }
+
+  const MemoryTagManager *tag_manager = *tag_manager_or_err;
+  SBMemoryTagManager sb_tag_manager;
+  sb_tag_manager.SetPtr(tag_manager);
+  managers.Append(sb_tag_manager);
+
+  return managers;
+}
+
+lldb::SBError SBProcess::ReadMemoryTags(int32_t type,
+                                        const lldb::SBVMRange &range,
+                                        lldb::SBStructuredData &result) const {
+  SBError sb_err;
+
+  // TODO: dedupe this initial set of checks?
+
+  if (!range.IsValid()) {
+    sb_err.SetErrorString("Read range must be valid.");
+    return sb_err;
+  }
+
+  ProcessSP process_sp(GetSP());
+  if (!process_sp) {
+    sb_err.SetErrorString("No current process.");
+    return sb_err;
+  }
+
+  llvm::Expected<const MemoryTagManager *> tag_manager_or_err =
+      process_sp->GetMemoryTagManager();
+  if (!tag_manager_or_err) {
+    sb_err.SetErrorString(toString(tag_manager_or_err.takeError()).c_str());
+    return sb_err;
+  }
+
+  const MemoryTagManager *tag_manager = *tag_manager_or_err;
+  int32_t tag_type = tag_manager->GetAllocationTagType();
+  if (tag_type != type) {
+    sb_err.SetErrorStringWithFormat(
+        "Memory tag type %d not suported by this process.", type);
+    return sb_err;
+  }
+
+  const VMRange &vm_range = range.ref();
+  llvm::Expected<std::vector<lldb::addr_t>> tags_or_err =
+      process_sp->ReadMemoryTags(vm_range.GetBaseAddress(),
+                                 vm_range.GetByteSize());
+  if (!tags_or_err) {
+    sb_err.SetErrorString(toString(tags_or_err.takeError()).c_str());
+    return sb_err;
+  }
+
+  auto tag_array = std::make_shared<StructuredData::Array>();
+  std::vector<lldb::addr_t> tags = *tags_or_err;
+  for (auto tag : tags) {
+    tag_array->AddItem(std::make_shared<StructuredData::Integer>(tag));
+  }
+
+  result.m_impl_up->SetObjectSP(StructuredData::ObjectSP(tag_array));
+
+  return sb_err;
+}
+
+lldb::SBError SBProcess::WriteMemoryTags(int32_t type,
+                                         const lldb::SBVMRange &range,
+                                         const lldb::SBStructuredData &tags) {
+  SBError sb_err;
+
+  // TODO: dedupe this initial set of checks?
+
+  if (!range.IsValid()) {
+    sb_err.SetErrorString("Write range must be valid.");
+    return sb_err;
+  }
+
+  if (!tags.IsValid()) {
+    sb_err.SetErrorString("Tags to write must be valid.");
+    return sb_err;
+  }
+
+  if (tags.GetType() != StructuredDataType::eStructuredDataTypeArray) {
+    sb_err.SetErrorString("Tags must be of type array.");
+    return sb_err;
+  }
+
+  ProcessSP process_sp(GetSP());
+  if (!process_sp) {
+    sb_err.SetErrorString("No current process.");
+    return sb_err;
+  }
+
+  llvm::Expected<const MemoryTagManager *> tag_manager_or_err =
+      process_sp->GetMemoryTagManager();
+  if (!tag_manager_or_err) {
+    sb_err.SetErrorString(toString(tag_manager_or_err.takeError()).c_str());
+    return sb_err;
+  }
+
+  const MemoryTagManager *tag_manager = *tag_manager_or_err;
+  int32_t tag_type = tag_manager->GetAllocationTagType();
+  if (tag_type != type) {
+    sb_err.SetErrorStringWithFormat(
+        "Memory tag type %d not suported by this process.", type);
+    return sb_err;
+  }
+
+  const VMRange &vm_range = range.ref();
+  std::vector<lldb::addr_t> tag_data;
+  size_t num_tags = tags.GetSize();
+  for (size_t i = 0; i < num_tags; ++i) {
+    SBStructuredData tag = tags.GetItemAtIndex(i);
+    if (tag.GetType() != StructuredDataType::eStructuredDataTypeInteger) {
+      sb_err.SetErrorString("Tags must be of type integer.");
+      return sb_err;
+    }
+    tag_data.push_back(tag.GetIntegerValue());
+  }
+
+  // This doesn't take a tag type but when we support multiple types per
+  // process, it will.
+  Status write_err = process_sp->WriteMemoryTags(
+      vm_range.GetBaseAddress(), vm_range.GetByteSize(), tag_data);
+  if (write_err.Fail())
+    sb_err.SetErrorString(write_err.AsCString());
+
+  return sb_err;
+}
+
+lldb::addr_t SBProcess::FixDataAddress(addr_t addr, lldb::SBError &error) {
+  ProcessSP process_sp(GetSP());
+  if (!process_sp) {
+    error.SetErrorString("No current process.");
+    return addr;
+  }
+
+  // TODO: would you want to know if no fixing took place?
+  if (auto ABI = process_sp->GetABI())
+    return ABI->FixDataAddress(addr);
+
+  return addr;
 }

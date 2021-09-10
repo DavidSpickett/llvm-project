@@ -1018,6 +1018,13 @@ static bool FormatThreadExtendedInfoRecurse(
         token_format = entry.printf_format.c_str();
       s.Printf(token_format, value->GetAsInteger()->GetValue());
       return true;
+      // TODO: token format is what?
+    } else if (value->GetType() == eStructuredDataTypeSignedInteger) {
+      const char *token_format = "0x%4.4" PRIx64;
+      if (!entry.printf_format.empty())
+        token_format = entry.printf_format.c_str();
+      s.Printf(token_format, value->GetAsSignedInteger()->GetValue());
+      return true;
     } else if (value->GetType() == eStructuredDataTypeFloat) {
       s.Printf("%f", value->GetAsFloat()->GetValue());
       return true;

@@ -41,6 +41,8 @@
 #include "lldb/API/SBListener.h"
 #include "lldb/API/SBMemoryRegionInfo.h"
 #include "lldb/API/SBMemoryRegionInfoList.h"
+#include "lldb/API/SBMemoryTagManager.h"
+#include "lldb/API/SBMemoryTagManagerList.h"
 #include "lldb/API/SBModule.h"
 #include "lldb/API/SBModuleSpec.h"
 #include "lldb/API/SBPlatform.h"
@@ -74,5 +76,7 @@
 #include "lldb/API/SBValue.h"
 #include "lldb/API/SBValueList.h"
 #include "lldb/API/SBVariablesOptions.h"
+#include "lldb/API/SBVMRange.h"
+#include "lldb/API/SBVMRangeList.h"
 #include "lldb/API/SBWatchpoint.h"
 %}

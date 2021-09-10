@@ -112,6 +112,7 @@ class TestStructuredDataAPI(TestBase):
                 str(output) +
                 " returned for a string object")
 
+    # TODO: signedint tests?
     def int_struct_test(self, dict_struct):
         # Check a valid SBStructuredData containing an 'integer' by
         int_struct = lldb.SBStructuredData()
