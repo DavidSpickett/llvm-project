@@ -150,3 +150,30 @@ class Thing <int A, int B> {}
     class Thing <int A, int B> {}
                             ^
 
+
+The `%json` magic can be used to show the records as JSON. This is equivalent to `%args --dump-json` with the added benefit that we format the output for you.
+
+
+```tablegen
+%reset
+%json
+class Root {}
+def thing : Root {}
+```
+
+    {
+        "!instanceof": {
+            "Root": [
+                "thing"
+            ]
+        },
+        "!tablegen_json_version": 1,
+        "thing": {
+            "!anonymous": false,
+            "!fields": [],
+            "!name": "thing",
+            "!superclasses": [
+                "Root"
+            ]
+        }
+    }

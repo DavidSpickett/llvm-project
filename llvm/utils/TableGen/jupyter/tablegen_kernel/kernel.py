@@ -2,6 +2,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import json
 import os
 import shutil
 import subprocess
@@ -20,6 +21,7 @@ class TableGenKernel(Kernel):
     The supported magic is:
     * %args - to set the arguments passed to llvm-tblgen.
     * %reset - to reset the cached code and magic state.
+    * %json - to emit records as JSON.
 
     These are "cell magic" meaning it applies to the whole cell. Therefore
     it must be the first line, or part of a run of magic lines starting
@@ -128,24 +130,24 @@ class TableGenKernel(Kernel):
 
         return "\n".join(code_lines), magic
 
-    def get_code_and_args(self, new_code):
-        """Get the code that do_execute should use, taking into account
-        the code from any cached cells.
-
-        Returns the code to compile and the arguments to use to do so.
+    def get_code_and_magic(self, new_code):
+        """Get the code that do_execute should use, and the magic
+        to run it with.
 
         >>> k._previous_code = ""
         >>> k._previous_magic = {}
-        >>> k.get_code_and_args("")
-        ('', [])
-        >>> k.get_code_and_args("%args 1\\nSome code")
-        ('Some code', ['1'])
-        >>> k.get_code_and_args("%args 2\\nSome more code")
-        ('Some code\\nSome more code', ['2'])
-        >>> k.get_code_and_args("%reset\\n%args 3 4\\nSome new code")
-        ('Some new code', ['3', '4'])
-        >>> k.get_code_and_args("%reset\\nSome new code")
-        ('Some new code', [])
+        >>> k.get_code_and_magic("")
+        ('', {})
+        >>> k.get_code_and_magic("%args 1\\nSome code")
+        ('Some code', {'args': ['1']})
+        >>> k.get_code_and_magic("%args 2\\nSome more code")
+        ('Some code\\nSome more code', {'args': ['2']})
+        >>> k.get_code_and_magic("")
+        ('Some code\\nSome more code\\n', {'args': ['2']})
+        >>> k.get_code_and_magic("%reset\\n%args 3 4\\nSome new code")
+        ('Some new code', {'args': ['3', '4']})
+        >>> k.get_code_and_magic("%reset\\nSome new code")
+        ('Some new code', {})
         """
         new_code, new_magic = self.get_magic(new_code)
 
@@ -157,7 +159,7 @@ class TableGenKernel(Kernel):
             self._previous_code += ("\n" if self._previous_code else "") + new_code
             self._previous_magic.update(new_magic)
 
-        return self._previous_code, self._previous_magic.get("args", [])
+        return self._previous_code, self._previous_magic
 
     def make_status(self):
         return {
@@ -182,7 +184,11 @@ class TableGenKernel(Kernel):
         self, code, silent, store_history=True, user_expressions=None, allow_stdin=False
     ):
         """Execute user code using llvm-tblgen binary."""
-        all_code, args = self.get_code_and_args(code)
+        all_code, magic = self.get_code_and_magic(code)
+
+        args = magic.get("args", [])
+        if magic.get("json") is not None:
+            args.append("--dump-json")
 
         # If we cannot find llvm-tblgen, propogate the error to the notebook.
         # (in case the user is not able to see the output from the Jupyter server)
@@ -206,7 +212,12 @@ class TableGenKernel(Kernel):
             if got.stderr:
                 return self.send_stderr(got.stderr)
             else:
-                return self.send_stdout(got.stdout)
+                out = got.stdout
+                if magic.get("json") is not None:
+                    j = json.loads(out)
+                    out = json.dumps(j, indent=4)
+
+                return self.send_stdout(out)
         else:
             return self.make_status()
 
