@@ -155,6 +155,12 @@ class TableGenKernel(Kernel):
         if new_magic.get("reset") is not None:
             self._previous_code = new_code
             self._previous_magic = new_magic
+        # TODO: dedupe and check this
+        elif new_magic.get("py") is not None:
+            # Don't add python code to cache
+            self._previous_magic.update(new_magic)
+            # TODO: awful hack
+            self._previous_magic["py"] = new_code
         else:
             self._previous_code += ("\n" if self._previous_code else "") + new_code
             self._previous_magic.update(new_magic)
@@ -190,12 +196,19 @@ class TableGenKernel(Kernel):
         if magic.get("json") is not None:
             args.append("--dump-json")
 
+<<<<<<< HEAD
         # If we cannot find llvm-tblgen, propogate the error to the notebook.
         # (in case the user is not able to see the output from the Jupyter server)
         try:
             executable = self.get_executable()
         except Exception as e:
             return self.send_stderr(str(e))
+=======
+        # TODO: temp hack, py would have to imply json
+        if magic.get("py") is not None:
+          # This cell is python code to run on the JSON of the cached source
+          args.append("--dump-json")
+>>>>>>> c1575881fbce... WIP: run python on json output
 
         with tempfile.TemporaryFile("w+") as f:
             f.write(all_code)
@@ -217,9 +230,36 @@ class TableGenKernel(Kernel):
                     j = json.loads(out)
                     out = json.dumps(j, indent=4)
 
+<<<<<<< HEAD
                 return self.send_stdout(out)
         else:
             return self.make_status()
+=======
+                # TODO: dedupe
+                if magic.get("py") is not None:
+                    j = json.loads(out)
+                    # TODO: return stderr here
+                    got = eval(magic["py"], {'j': j})
+                    if isinstance(got, dict):
+                      # Return as JSON
+                      out = json.dumps(got, indent=4)
+                    else:
+                      # Assume string or stringable thing.
+                      out = str(got)
+
+                self.send_response(
+                    self.iopub_socket,
+                    "stream",
+                    {"name": "stdout", "text": out},
+                )
+
+        return {
+            "status": "ok",
+            "execution_count": self.execution_count,
+            "payload": [],
+            "user_expressions": {},
+        }
+>>>>>>> c1575881fbce... WIP: run python on json output
 
 
 if __name__ == "__main__":
