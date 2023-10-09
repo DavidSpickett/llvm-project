@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <vector>
 
+#include "lldb/Target/RegisterFlags.h"
 #include "lldb/lldb-defines.h"
 #include "llvm/Support/Compiler.h"
 
@@ -83,8 +84,25 @@ static lldb_private::RegisterInfo g_register_infos_tls[] = {
     // Only present when SME is present
     DEFINE_EXTENSION_REG(tpidr2)};
 
+static const lldb_private::RegisterFlags svcr_flags{"svcr_flags",
+                                                    8,
+                                                    {
+                                                        {"ZA", 1, 1},
+                                                        {"SM", 0, 0},
+                                                    }};
 static lldb_private::RegisterInfo g_register_infos_sme[] = {
-    DEFINE_EXTENSION_REG(svcr),
+    {
+        "svcr",
+        nullptr,
+        8,
+        0,
+        lldb::eEncodingUint,
+        lldb::eFormatHex,
+        KIND_ALL_INVALID,
+        nullptr,
+        nullptr,
+        &svcr_flags,
+    },
     DEFINE_EXTENSION_REG(svg),
     // 16 is a default size we will change later.
     {"za", nullptr, 16, 0, lldb::eEncodingVector, lldb::eFormatVectorOfUInt8,
