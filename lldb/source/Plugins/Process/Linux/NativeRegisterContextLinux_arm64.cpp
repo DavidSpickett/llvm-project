@@ -14,6 +14,7 @@
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Host/common/NativeProcessProtocol.h"
 #include "lldb/Host/linux/Ptrace.h"
+#include "lldb/Target/RegisterFlags.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegisterValue.h"
@@ -53,12 +54,71 @@
 #define NT_ARM_TAGGED_ADDR_CTRL 0x409 /* Tagged address control register */
 #endif
 
+#ifndef HWCAP_PACA
 #define HWCAP_PACA (1 << 30)
+#endif
+
+#ifndef HWCAP2_BTI
+#define HWCAP2_BTI (1 << 17)
+#endif
+
+#ifndef HWCAP2_MTE
 #define HWCAP2_MTE (1 << 18)
+#endif
 
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::process_linux;
+
+// Describes the saved program status register SPSR_EL1, which is what lldb
+// will be reading as the current program status register.
+// Not const because we need to patch in the fields at runtime depending on what
+// the CPU supports.
+// TODO: thread safety?
+static lldb_private::RegisterFlags cpsr_flags(
+    // TODO: allow no fields? Worst thing that happens is we pad all the bits
+    // out.
+    "cpsr_flags", 4, {{"", 0, 0} /* dummy field, replaced later */});
+
+static void DetectCPSRFields(std::optional<uint64_t> auxv_at_hwcap,
+                             std::optional<uint64_t> auxv_at_hwcap2) {
+  // Status bits that are always present.
+  std::vector<RegisterFlags::Field> cpsr_fields{
+      {"N", 31, 31}, {"Z", 30, 30}, {"C", 29, 29}, {"V", 28, 28},
+      // bits 27-26 reserved.
+  };
+
+  if (auxv_at_hwcap2 && (*auxv_at_hwcap2 & HWCAP2_MTE))
+    cpsr_fields.push_back({"TCO", 25, 25});
+  if (auxv_at_hwcap && (*auxv_at_hwcap & HWCAP_DIT))
+    cpsr_fields.push_back({"DIT", 24, 24});
+  // UAO and PAN has no meaning for userspace so are treated as reserved.
+
+  cpsr_fields.push_back({"SS", 21, 21});
+  cpsr_fields.push_back({"IL", 20, 20});
+  // bits 19-14 reserved.
+
+  // ALLINT requires FEAT_NMI that isn't relevant to userspace, and we can't
+  // detect either, don't show this field.
+  if (auxv_at_hwcap && (*auxv_at_hwcap & HWCAP_SSBS))
+    cpsr_fields.push_back({"SSBS", 12, 12});
+  if (auxv_at_hwcap2 && (*auxv_at_hwcap2 & HWCAP2_BTI))
+    cpsr_fields.push_back({"BTYPE", 10, 11});
+
+  cpsr_fields.push_back({"D", 9, 9});
+  cpsr_fields.push_back({"A", 8, 8});
+  cpsr_fields.push_back({"I", 7, 7});
+  cpsr_fields.push_back({"F", 6, 6});
+  // bit 5 reserved
+  // Called "M" in the ARMARM.
+  cpsr_fields.push_back({"nRW", 4, 4});
+  // This is a 4 bit field M[3:0] in the ARMARM, we split it into parts.
+  cpsr_fields.push_back({"EL", 2, 3});
+  // bit 1 is unused and expected to be 0.
+  cpsr_fields.push_back({"SP", 0, 0});
+
+  cpsr_flags.SetFields(cpsr_fields);
+}
 
 std::unique_ptr<NativeRegisterContextLinux>
 NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
@@ -118,6 +178,8 @@ NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
 
     opt_regsets.Set(RegisterInfoPOSIX_arm64::eRegsetMaskTLS);
 
+    DetectCPSRFields(auxv_at_hwcap, auxv_at_hwcap2);
+
     auto register_info_up =
         std::make_unique<RegisterInfoPOSIX_arm64>(target_arch, opt_regsets);
     return std::make_unique<NativeRegisterContextLinux_arm64>(
@@ -140,6 +202,14 @@ NativeRegisterContextLinux_arm64::NativeRegisterContextLinux_arm64(
     : NativeRegisterContextRegisterInfo(native_thread,
                                         register_info_up.release()),
       NativeRegisterContextLinux(native_thread) {
+  uint32_t num_regs = GetRegisterInfoInterface().GetRegisterCount();
+  const RegisterInfo *reg_info = GetRegisterInfoInterface().GetRegisterInfo();
+  for (uint32_t idx = 0; idx < num_regs; ++idx, ++reg_info) {
+    // TODO: better way than string compare?
+    if (std::strcmp("cpsr", reg_info->name) == 0)
+      reg_info->flags_type = &cpsr_flags;
+  }
+
   ::memset(&m_fpr, 0, sizeof(m_fpr));
   ::memset(&m_gpr_arm64, 0, sizeof(m_gpr_arm64));
   ::memset(&m_hwp_regs, 0, sizeof(m_hwp_regs));
