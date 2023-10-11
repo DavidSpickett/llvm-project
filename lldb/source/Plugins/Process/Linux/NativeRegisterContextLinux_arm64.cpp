@@ -54,16 +54,32 @@
 #define NT_ARM_TAGGED_ADDR_CTRL 0x409 /* Tagged address control register */
 #endif
 
+#ifndef HWCAP_ASIMDHP
+#define HWCAP_ASIMDHP (1UL << 10)
+#endif
+
+#ifndef HWCAP_FPHP
+#define HWCAP_FPHP (1UL << 9)
+#endif
+
 #ifndef HWCAP_PACA
-#define HWCAP_PACA (1 << 30)
+#define HWCAP_PACA (1UL << 30)
+#endif
+
+#ifndef HWCAP2_AFP
+#define HWCAP2_AFP (1UL << 20)
 #endif
 
 #ifndef HWCAP2_BTI
-#define HWCAP2_BTI (1 << 17)
+#define HWCAP2_BTI (1UL << 17)
+#endif
+
+#ifndef HWCAP2_EBF16
+#define HWCAP2_EBF16 (1UL << 32)
 #endif
 
 #ifndef HWCAP2_MTE
-#define HWCAP2_MTE (1 << 18)
+#define HWCAP2_MTE (1UL << 18)
 #endif
 
 using namespace lldb;
@@ -118,6 +134,46 @@ static void DetectCPSRFields(std::optional<uint64_t> auxv_at_hwcap,
   cpsr_fields.push_back({"SP", 0, 0});
 
   cpsr_flags.SetFields(cpsr_fields);
+}
+
+static lldb_private::RegisterFlags fpcr_flags(
+    // TODO: allow no fields? Worst thing that happens is we pad all the bits
+    // out.
+    "fpcr_flags", 4, {{"", 0, 0} /* dummy field, replaced later */});
+
+static void DetectFPCRFields(std::optional<uint64_t> auxv_at_hwcap,
+                             std::optional<uint64_t> auxv_at_hwcap2) {
+  std::vector<RegisterFlags::Field> fpcr_fields{
+      {"AHP", 26, 26}, {"DN", 25, 25}, {"FZ", 24, 24}, {"RMMode", 22, 23},
+      // Bits 21-20 are "Stride" which is unused in AArch64 state.
+  };
+
+  // FEAT_FP16 is indicated by the presence of FPHP (floating point half
+  // precision) and ASIMDHP (Advanced SIMD half precision) features.
+  if (auxv_at_hwcap && (*auxv_at_hwcap & HWCAP_FPHP) &&
+      (*auxv_at_hwcap & HWCAP_ASIMDHP))
+    fpcr_fields.push_back({"FZ16", 19, 19});
+
+  // Bits 18-16 are "Len" which is unused in AArch64 state.
+  fpcr_fields.push_back({"IDE", 15, 15});
+
+  if (auxv_at_hwcap2 && (*auxv_at_hwcap2 & HWCAP2_EBF16))
+    fpcr_fields.push_back({"EBF", 13, 13});
+
+  fpcr_fields.push_back({"IXE", 12, 12});
+  fpcr_fields.push_back({"UFE", 11, 11});
+  fpcr_fields.push_back({"OFE", 10, 10});
+  fpcr_fields.push_back({"DZE", 9, 9});
+  fpcr_fields.push_back({"IOE", 8, 8});
+  // Bits 7-3 reserved, RES0.
+
+  if (auxv_at_hwcap2 && (*auxv_at_hwcap2 & HWCAP2_AFP)) {
+    fpcr_fields.push_back({"NEP", 2, 2});
+    fpcr_fields.push_back({"AH", 1, 1});
+    fpcr_fields.push_back({"FIZ", 0, 0});
+  }
+
+  fpcr_flags.SetFields(fpcr_fields);
 }
 
 std::unique_ptr<NativeRegisterContextLinux>
@@ -179,6 +235,7 @@ NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
     opt_regsets.Set(RegisterInfoPOSIX_arm64::eRegsetMaskTLS);
 
     DetectCPSRFields(auxv_at_hwcap, auxv_at_hwcap2);
+    DetectFPCRFields(auxv_at_hwcap, auxv_at_hwcap2);
 
     auto register_info_up =
         std::make_unique<RegisterInfoPOSIX_arm64>(target_arch, opt_regsets);
@@ -208,6 +265,8 @@ NativeRegisterContextLinux_arm64::NativeRegisterContextLinux_arm64(
     // TODO: better way than string compare?
     if (std::strcmp("cpsr", reg_info->name) == 0)
       reg_info->flags_type = &cpsr_flags;
+    if (std::strcmp("fpcr", reg_info->name) == 0)
+      reg_info->flags_type = &fpcr_flags;
   }
 
   ::memset(&m_fpr, 0, sizeof(m_fpr));
