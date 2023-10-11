@@ -176,6 +176,20 @@ static void DetectFPCRFields(std::optional<uint64_t> auxv_at_hwcap,
   fpcr_flags.SetFields(fpcr_fields);
 }
 
+static lldb_private::RegisterFlags fpsr_flags(
+    "fpsr_flags", 4, {
+      // Bits 31-28 are N/Z/C/V, only used by AArch32.
+      {"QC", 27, 27},
+      // Bits 28-8 reserved.
+      {"IDC", 7, 7},
+      // Bits 6-5 reserved.
+      {"IXC", 4, 4},
+      {"UFC", 3, 3},
+      {"OFC", 2, 2},
+      {"DZC", 1, 1},
+      {"IOC", 0, 0},
+    });
+
 std::unique_ptr<NativeRegisterContextLinux>
 NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
     const ArchSpec &target_arch, NativeThreadLinux &native_thread) {
@@ -267,6 +281,8 @@ NativeRegisterContextLinux_arm64::NativeRegisterContextLinux_arm64(
       reg_info->flags_type = &cpsr_flags;
     if (std::strcmp("fpcr", reg_info->name) == 0)
       reg_info->flags_type = &fpcr_flags;
+    if (std::strcmp("fpsr", reg_info->name) == 0)
+      reg_info->flags_type = &fpsr_flags;
   }
 
   ::memset(&m_fpr, 0, sizeof(m_fpr));
