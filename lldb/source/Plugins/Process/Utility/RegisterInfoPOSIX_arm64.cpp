@@ -76,8 +76,31 @@
 static lldb_private::RegisterInfo g_register_infos_pauth[] = {
     DEFINE_EXTENSION_REG(data_mask), DEFINE_EXTENSION_REG(code_mask)};
 
-static lldb_private::RegisterInfo g_register_infos_mte[] = {
-    DEFINE_EXTENSION_REG(mte_ctrl)};
+static const lldb_private::RegisterFlags mte_ctrl_flags{
+    "mte_ctrl_flags",
+    8,
+    {
+        // TODO: flip start/end bit parameter order?
+        {"TAGS", 3, 18},
+        // TODO: add an overload that takes only the start and assumes start ==
+        // end.
+        {"TCF_ASYNC", 2, 2},
+        {"TCF_SYNC", 1, 1},
+        {"TAGGED_ADDR_ENABLE", 0, 0},
+    }};
+
+static lldb_private::RegisterInfo g_register_infos_mte[] = {{
+    "mte_ctrl",
+    nullptr,
+    8,
+    0,
+    lldb::eEncodingUint,
+    lldb::eFormatHex,
+    KIND_ALL_INVALID,
+    nullptr,
+    nullptr,
+    &mte_ctrl_flags,
+}};
 
 static lldb_private::RegisterInfo g_register_infos_tls[] = {
     DEFINE_EXTENSION_REG(tpidr),
