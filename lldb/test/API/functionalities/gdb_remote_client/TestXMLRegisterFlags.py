@@ -654,3 +654,283 @@ class TestXMLRegisterFlags(GDBRemoteTestBase):
             "register info cpsr",
             substrs=["| A< | B> | C' | D\" | E& |"],
         )
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_no_enum(self):
+        """Check that lldb does not try to print an enum when there isn't one."""
+
+        self.setup_flags_test('<field name="E" start="0" end="0">' "</field>")
+
+        self.expect("register info cpsr", patterns=["E:.*$"], matching=False)
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_enum_no_enumerators(self):
+        """Check that lldb does not try to print an enum when there is one but it
+        has no enumerators."""
+
+        self.setup_flags_test(
+            '<field name="E" start="0" end="0">' "<enum></enum>" "</field>"
+        )
+
+        self.expect("register info cpsr", patterns=["E:.*$"], matching=False)
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_enum_duplicated_value(self):
+        """Check that lldb only uses the first instance of a enumerator for each
+        value."""
+
+        self.setup_flags_test(
+            '<field name="E" start="0" end="1">'
+            "  <enum>"
+            '    <enumerator name="abc" value="1"/>'
+            '    <enumerator name="def" value="1"/>'
+            '    <enumerator name="geh" value="2"/>'
+            "  </enum>"
+            "</field>"
+        )
+
+        self.expect("register info cpsr", patterns=["E: 1 = abc, 2 = geh$"])
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_enum_use_first_valid(self):
+        """Check that lldb uses the first enum that parses correctly and ignores
+        the rest."""
+
+        self.setup_flags_test(
+            '<field name="E" start="0" end="0">'
+            "  <enum></enum>"
+            '  <enum><enumerator name="valid" value="1"/></enum>'
+            '  <enum><enumerator name="ignored" value="0"/></enum>'
+            "</field>"
+        )
+
+        self.expect("register info cpsr", patterns=["E: 1 = valid$"])
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_enumerator_invalid_name(self):
+        """Check that lldb ignores enumerators with an empty name."""
+
+        # The only potential use case for empty names is to shadow an enumerator
+        # declared later so that it's name is hidden should the debugger only
+        # pick one of them. This behaviour would be debugger specific so the protocol
+        # would probably not care or leave it up to us, and I think it's not a
+        # useful thing to allow.
+
+        self.setup_flags_test(
+            '<field name="E" start="0" end="1">'
+            "  <enum>"
+            '    <enumerator name="" value="1"/>'
+            '    <enumerator name="valid" value="2"/>'
+            "  </enum>"
+            "</field>"
+        )
+
+        self.expect("register info cpsr", patterns=["E: 2 = valid$"])
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_enumerator_invalid_value(self):
+        """Check that lldb ignores enumerators with an invalid value."""
+        self.setup_flags_test(
+            '<field name="E" start="0" end="2">'
+            "  <enum>"
+            '    <enumerator name="negative_dec" value="-1"/>'
+            '    <enumerator name="negative_hex" value="-0x1"/>'
+            '    <enumerator name="negative_bin" value="-0b1"/>'
+            '    <enumerator name="negative_float" value="-0.5"/>'
+            '    <enumerator name="nan" value="aardvark"/>'
+            '    <enumerator name="dec" value="1"/>'
+            '    <enumerator name="hex" value="0x2"/>'
+            '    <enumerator name="octal" value="03"/>'
+            '    <enumerator name="float" value="0.5"/>'
+            '    <enumerator name="bin" value="0b100"/>'
+            "  </enum>"
+            "</field>"
+        )
+
+        self.expect(
+            "register info cpsr", patterns=["E: 1 = dec, 2 = hex, 3 = octal, 4 = bin$"]
+        )
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_enum_ignore_unknown_attributes(self):
+        """Check that lldb ignores unknown attributes on an enum or enumerator."""
+        self.setup_flags_test(
+            '<field name="E" start="0" end="0">'
+            '  <enum foo="bar">'
+            '    <enumerator name="valid" value="1" abc="def" aardvark="?"/>'
+            "  </enum>"
+            "</field>"
+        )
+
+        self.expect("register info cpsr", patterns=["E: 1 = valid$"])
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_enumerator_required_attributes(self):
+        """Check that lldb rejects any enumerator missing a name and/or value."""
+        self.setup_flags_test(
+            '<field name="E" start="0" end="0">'
+            "  <enum>"
+            '    <enumerator name="name"/>'
+            '    <enumerator value="1"/>'
+            "    <enumerator/>"
+            '    <enumerator name="valid" value="1"/>'
+            "  </enum>"
+            "</field>"
+        )
+
+        self.expect("register info cpsr", patterns=["E: 1 = valid$"])
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_enum_unsupported_field_type(self):
+        """Check that lldb ignores enums on fields with types that we wouldn't
+        be able to render properly e.g. floats."""
+        self.setup_flags_test(
+            '<field name="E" start="0" end="0" type="float">'
+            '  <enum><enumerator name="valid" value="1"/></enum>'
+            "</field>"
+        )
+
+        self.expect("register info cpsr", patterns=["1 = valid"], matching=False)
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_enum_empty_field_type(self):
+        """Check that we do show enums where type is set to empty string,
+        which means the default type of boolean (1 bit) or unsigned int (>1 bit)."""
+        self.setup_flags_test(
+            '<field name="E" start="0" end="0" type="">'
+            '  <enum><enumerator name="valid" value="1"/></enum>'
+            "</field>"
+        )
+
+        self.expect(
+            "register info cpsr",
+            patterns=["1 = valid$"],
+        )
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_enumerator_name_xml_reserved_characters(self):
+        """Check that lldb converts reserved character replacements like &amp;
+        when found in field enumerator names."""
+        self.setup_flags_test(
+            '<field name="E" start="0" end="2">'
+            "  <enum>"
+            '    <enumerator name="A&amp;"  value="0"/>'
+            '    <enumerator name="B&quot;" value="1"/>'
+            '    <enumerator name="C&apos;" value="2"/>'
+            '    <enumerator name="D&gt;"   value="3"/>'
+            '    <enumerator name="E&lt;"   value="4"/>'
+            "  </enum>"
+            "</field>"
+        )
+
+        self.expect(
+            "register info cpsr",
+            patterns=["E: 0 = A&, 1 = B\", 2 = C', 3 = D>, 4 = E<$"],
+        )
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_enumerator_value_range(self):
+        """Check that lldb ignores enumerators whose value would not fit into
+        their field."""
+        self.setup_flags_test(
+            '<field name="E" start="0" end="1">'
+            "  <enum>"
+            '    <enumerator name="A" value="0"/>'
+            '    <enumerator name="B" value="1"/>'
+            '    <enumerator name="C" value="2"/>'
+            '    <enumerator name="D" value="3"/>'
+            '    <enumerator name="E" value="4"/>'
+            "  </enum>"
+            "</field>"
+        )
+
+        self.expect("register info cpsr", patterns=["E: 0 = A, 1 = B, 2 = C, 3 = D$"])
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_enumerator_value_limits(self):
+        """Check that lldb can handle an enumerator for a field up to 64 bits
+        in size."""
+
+        self.setup_register_test(
+            """\
+          <flags id="x0_flags" size="8">
+            <field name="foo" start="0" end="63">
+              <enum>
+                <enumerator name="min" value="0"/>
+                <enumerator name="max" value="0xffffffffffffffff"/>
+              </enum>
+            </field>
+          </flags>
+          <reg name="pc" bitsize="64"/>
+          <reg name="x0" regnum="0" bitsize="64" type="x0_flags"/>
+          <reg name="cpsr" regnum="33" bitsize="32"/>"""
+        )
+
+        self.expect(
+            "register info x0", patterns=["foo: 0 = min, 18446744073709551615 = max$"]
+        )
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_enumerator_descriptions(self):
+        """Check that lldb handles enumerator descriptions if given."""
+        # This is just an integration test, more tests in RegisterFlagsTest.cpp.
+        self.setup_register_test(
+            """\
+          <flags id="x0_flags" size="8">
+            <field name="foo" start="0" end="63">
+              <enum>
+                <enumerator name="example0" value="0" description="This is a description."/>
+                <enumerator name="example1" value="1" description=""/>
+                <enumerator name="example2" value="2"/>
+              </enum>
+            </field>
+          </flags>
+          <reg name="pc" bitsize="64"/>
+          <reg name="x0" regnum="0" bitsize="64" type="x0_flags"/>
+          <reg name="cpsr" regnum="33" bitsize="32"/>"""
+        )
+
+        self.expect(
+            "register info x0",
+            patterns=[
+                "foo: 0 = example0\n"
+                "       This is a description.\n"
+                "     1 = example1\n"
+                "     2 = example2"
+            ],
+        )
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_field_size_limit(self):
+        """Check that lldb ignores any field > 64 bits. We can't handle those
+        correctly."""
+
+        self.setup_register_test(
+            """\
+          <flags id="x0_flags" size="8">
+            <field name="invalid" start="0" end="64"/>
+            <field name="valid" start="0" end="63"/>
+          </flags>
+          <reg name="pc" bitsize="64"/>
+          <reg name="x0" regnum="0" bitsize="64" type="x0_flags"/>
+          <reg name="cpsr" regnum="33" bitsize="32"/>"""
+        )
+
+        self.expect(
+            "register info x0", substrs=["| 63-0  |\n" "|-------|\n" "| valid |"]
+        )

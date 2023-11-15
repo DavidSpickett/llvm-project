@@ -26,17 +26,46 @@ public:
     /// significant bit. The start bit must be <= the end bit.
     Field(std::string name, unsigned start, unsigned end);
 
+    struct Enumerator {
+      uint64_t m_value;
+      // Short name for the value. Shown in tables and when printing the field's
+      // value. For example "RZ".
+      std::string m_name;
+      // Long, perhaps multi-sentence description of this value's meaning. For
+      // example "RZ"'s description might be "Round floating point results
+      // towards zero.". Shown when printing information about the register or
+      // field using the "register info" command.
+      std::string m_description;
+
+      Enumerator(uint64_t value, std::string name)
+          : m_value(value), m_name(name), m_description("") {}
+
+      Enumerator(uint64_t value, std::string name, std::string description)
+          : m_value(value), m_name(name), m_description(description) {}
+    };
+
+    using Enum = std::vector<Enumerator>;
+
+    /// Construct a field that also has some known enum values.
+    Field(std::string name, unsigned start, unsigned end, Enum enumerators);
+
     /// Construct a field that occupies a single bit.
-    Field(std::string name, unsigned bit_position)
-        : m_name(std::move(name)), m_start(bit_position), m_end(bit_position) {}
+    Field(std::string name, unsigned bit_position);
 
     /// Get size of the field in bits. Will always be at least 1.
-    unsigned GetSizeInBits() const { return m_end - m_start + 1; }
+    unsigned GetSizeInBits() const;
+
+    /// Identical to GetSizeInBits, but for the GDB client to use.
+    static unsigned GetSizeInBits(unsigned start, unsigned end);
 
     /// A mask that covers all bits of the field.
-    uint64_t GetMask() const {
-      return (((uint64_t)1 << (GetSizeInBits())) - 1) << m_start;
-    }
+    uint64_t GetMask() const;
+
+    /// The maximum unsigned value that could be contained in this field.
+    uint64_t GetMaxValue() const;
+
+    /// Identical to GetMaxValue but for the GDB client to use.
+    static uint64_t GetMaxValue(unsigned start, unsigned end);
 
     /// Extract value of the field from a whole register value.
     uint64_t GetValue(uint64_t register_value) const {
@@ -44,6 +73,7 @@ public:
     }
 
     const std::string &GetName() const { return m_name; }
+    const Enum &GetEnum() const { return m_enumerators; }
     unsigned GetStart() const { return m_start; }
     unsigned GetEnd() const { return m_end; }
     bool Overlaps(const Field &other) const;
@@ -69,12 +99,18 @@ public:
 
   private:
     std::string m_name;
+
     /// Start/end bit positions. Where start N, end N means a single bit
     /// field at position N. We expect that start <= end. Bit positions begin
     /// at 0.
     /// Start is the LSB, end is the MSB.
     unsigned m_start;
     unsigned m_end;
+
+    /// A list of pairs of field value to meaning of that value. This does not
+    /// have to cover the entire range of the field. Enumerator order is the
+    /// same as they are given, no sorting is done.
+    Enum m_enumerators;
   };
 
   /// This assumes that:
@@ -117,6 +153,10 @@ public:
   /// going to print the table to. If the table would exceed this width, it will
   /// be split into many tables as needed.
   std::string AsTable(uint32_t max_width) const;
+
+  /// Make a string where each line contains the name of a field that has
+  /// enum values, and lists what those values are.
+  std::string DumpEnums(uint32_t max_width) const;
 
   // Output XML that describes this set of flags.
   void ToXML(StreamString &strm) const;

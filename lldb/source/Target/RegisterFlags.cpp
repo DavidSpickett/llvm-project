@@ -12,6 +12,7 @@
 
 #include "llvm/ADT/StringExtras.h"
 
+#include <limits>
 #include <numeric>
 #include <optional>
 
@@ -20,6 +21,27 @@ using namespace lldb_private;
 RegisterFlags::Field::Field(std::string name, unsigned start, unsigned end)
     : m_name(std::move(name)), m_start(start), m_end(end) {
   assert(m_start <= m_end && "Start bit must be <= end bit.");
+}
+
+RegisterFlags::Field::Field(std::string name, unsigned bit_position)
+    : m_name(std::move(name)), m_start(bit_position), m_end(bit_position) {}
+
+RegisterFlags::Field::Field(std::string name, unsigned start, unsigned end,
+                            Enum enumerators)
+    : m_name(std::move(name)), m_start(start), m_end(end),
+      m_enumerators(std::move(enumerators)) {
+  // Enumerators come from 2 sources. Target XML via the GDB remote and from
+  // direct construction in C++. The GDB remote discards invalid enumerators,
+  // here we are more strict.
+  uint64_t max_value = GetMaxValue();
+  UNUSED_IF_ASSERT_DISABLED(max_value);
+  for (const auto &enumerator : m_enumerators) {
+    UNUSED_IF_ASSERT_DISABLED(enumerator);
+    assert(enumerator.m_name.size() && "Enumerator name cannot be empty");
+    assert(enumerator.m_value <= max_value &&
+           "Enumerator value exceeds maximum value for this field");
+    // Description is optional.
+  }
 }
 
 void RegisterFlags::Field::log(Log *log) const {
@@ -51,6 +73,35 @@ unsigned RegisterFlags::Field::PaddingDistance(const Field &other) const {
   }
 
   return lhs_start - rhs_end - 1;
+}
+
+unsigned RegisterFlags::Field::GetSizeInBits(unsigned start, unsigned end) {
+  return end - start + 1;
+}
+
+unsigned RegisterFlags::Field::GetSizeInBits() const {
+  return GetSizeInBits(m_start, m_end);
+}
+
+uint64_t RegisterFlags::Field::GetMaxValue(unsigned start, unsigned end) {
+  uint64_t max = std::numeric_limits<uint64_t>::max();
+  unsigned bits = GetSizeInBits(start, end);
+  // If the field is >= 64 bits the shift below would be undefined.
+  // We assume the GDB client has discarded any field that would fail this
+  // assert, it's only to check information we define directly in C++.
+  assert(bits <= 64 && "Cannot handle field with size > 64 bits");
+  if (bits < 64) {
+    max = ((uint64_t)1 << bits) - 1;
+  }
+  return max;
+}
+
+uint64_t RegisterFlags::Field::GetMaxValue() const {
+  return GetMaxValue(m_start, m_end);
+}
+
+uint64_t RegisterFlags::Field::GetMask() const {
+  return GetMaxValue() << m_start;
 }
 
 void RegisterFlags::SetFields(const std::vector<Field> &fields) {
@@ -190,6 +241,118 @@ std::string RegisterFlags::AsTable(uint32_t max_width) const {
   return table;
 }
 
+// For an enum with no enumerators with descriptions, print it as:
+// value = name, value2 = name2
+// Subject to the limits of the terminal width.
+static void DumpEnumeratorsWithoutDescriptions(
+    StreamString &strm, size_t indent, size_t current_width, uint32_t max_width,
+    const RegisterFlags::Field::Enum &enumerators) {
+  for (auto it = enumerators.cbegin(); it != enumerators.cend(); ++it) {
+    StreamString enumerator_strm;
+    // The first enumerator of a line doesn't need to be separated.
+    if (current_width != indent)
+      enumerator_strm << ' ';
+
+    enumerator_strm.Printf("%" PRIu64 " = %s", it->m_value, it->m_name.c_str());
+
+    // Don't put "," after the last enumerator.
+    if (std::next(it) != enumerators.cend())
+      enumerator_strm << ",";
+
+    llvm::StringRef enumerator_string = enumerator_strm.GetString();
+    // If printing the next enumerator would take us over the width, start
+    // a new line. However, if we're printing the first enumerator of this
+    // line, don't start a new one. Resulting in there being at least one per
+    // line.
+    //
+    // This means for very small widths we get:
+    // A: 0 = foo,
+    //    1 = bar
+    // Instead of:
+    // A:
+    //    0 = foo,
+    //    1 = bar
+    if ((current_width + enumerator_string.size() > max_width) &&
+        current_width != indent) {
+      current_width = indent;
+      strm << '\n' << std::string(indent, ' ');
+      // We're going to a new line so we don't need a space before the
+      // name of the enumerator.
+      enumerator_string = enumerator_string.drop_front();
+    }
+
+    current_width += enumerator_string.size();
+    strm << enumerator_string;
+  }
+}
+
+// For an enum where there are descriptions, print one enumerator per line
+// followed by its description. Which we expect to be a lot larger than the
+// name. value = name
+//   Description goes here.
+// value2 = name2
+// value3 = name3
+//   Description goes here.
+static void
+DumpEnumeratorsWithDescriptions(StreamString &strm, size_t indent,
+                                size_t current_width, uint32_t max_width,
+                                const RegisterFlags::Field::Enum &enumerators) {
+
+  bool first = true;
+  for (const RegisterFlags::Field::Enumerator &enumerator : enumerators) {
+    // First enum is indented by the field name already.
+    if (!first) {
+      strm << "\n" << std::string(indent, ' ');
+    }
+    first = false;
+
+    strm.Printf("%" PRIu64 " = %s", enumerator.m_value,
+                enumerator.m_name.c_str());
+
+    if (!enumerator.m_description.empty()) {
+      // Description starts indented more than the enumerator line, and we let
+      // the terminal wrap it beyond that.
+      strm << "\n" << std::string(indent + 2, ' ') << enumerator.m_description;
+    }
+  }
+}
+
+std::string RegisterFlags::DumpEnums(uint32_t max_width) const {
+  StreamString strm;
+  bool printed_enumerators_once = false;
+
+  for (const auto &field : m_fields) {
+    const Field::Enum &enumerators = field.GetEnum();
+
+    if (enumerators.empty())
+      continue;
+
+    // Break between enumerators of different fields.
+    if (printed_enumerators_once)
+      strm << "\n\n";
+    else
+      printed_enumerators_once = true;
+
+    std::string name_string = field.GetName() + ": ";
+    size_t indent = name_string.size();
+    size_t current_width = indent;
+
+    strm << name_string;
+
+    if (std::any_of(enumerators.cbegin(), enumerators.cend(),
+                    [](const Field::Enumerator &enumerator) {
+                      return !enumerator.m_description.empty();
+                    }))
+      DumpEnumeratorsWithDescriptions(strm, indent, current_width, max_width,
+                                      enumerators);
+    else
+      DumpEnumeratorsWithoutDescriptions(strm, indent, current_width, max_width,
+                                         enumerators);
+  }
+
+  return strm.GetString().str();
+}
+
 void RegisterFlags::ToXML(StreamString &strm) const {
   // Example XML:
   // <flags id="cpsr_flags" size="4">
@@ -214,7 +377,11 @@ void RegisterFlags::ToXML(StreamString &strm) const {
 }
 
 void RegisterFlags::Field::ToXML(StreamString &strm) const {
-  // Example XML:
+  // Example XML with an enum:
+  // <field name="correct" start="0" end="0">
+  // <enumerator name="a_value" value="3"/>
+  // <field>
+  // Without:
   // <field name="correct" start="0" end="0"/>
   strm.Indent();
   strm << "<field name=\"";
@@ -225,5 +392,31 @@ void RegisterFlags::Field::ToXML(StreamString &strm) const {
   strm << escaped_name << "\" ";
 
   strm.Printf("start=\"%d\" end=\"%d\"", GetStart(), GetEnd());
-  strm << "/>";
+
+  if (m_enumerators.empty()) {
+    strm << "/>";
+    return;
+  }
+
+  strm << ">\n";
+  strm.IndentMore();
+  strm.Indent("<enum>\n");
+  strm.IndentMore();
+
+  for (const auto &enumerator : m_enumerators) {
+    strm.Indent();
+    escaped_name.clear();
+    llvm::printHTMLEscaped(enumerator.m_name, escape_strm);
+    strm.Printf("<enumerator name=\"%s\" value=\"%" PRIu64 "\"",
+                escaped_name.c_str(), enumerator.m_value );
+    if (!enumerator.m_description.empty())
+      strm.Printf(" description=\"%s\"", enumerator.m_description.c_str());
+    strm.Printf("/>\n");
+  }
+
+  strm.IndentLess();
+  strm.Indent("</enum>\n");
+
+  strm.IndentLess();
+  strm.Indent("</field>");
 }

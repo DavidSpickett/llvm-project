@@ -580,7 +580,21 @@ class LinuxCoreTestCase(TestBase):
         self.expect("register read fpsr", substrs=["= (QC = 0, IDC = 0, IXC = 0"])
         # AHP/DN/FZ/RMode always present, others may vary.
         self.expect(
-            "register read fpcr", substrs=["= (AHP = 0, DN = 0, FZ = 0, RMode = 0"]
+            "register read fpcr", substrs=["= (AHP = 0, DN = 0, FZ = 0, RMode = RN (0)"]
+        )
+        # RMode should have enumerator descriptions.
+        self.expect(
+            "register info fpcr",
+            substrs=[
+                "RMode: 0 = RN\n"
+                "         Round to Nearest\n"
+                "       1 = RP\n"
+                "         Round towards Plus Infinity\n"
+                "       2 = RM\n"
+                "         Round towards Minus Infinity\n"
+                "       3 = RZ\n"
+                "         Round towards Zero"
+            ],
         )
 
     @skipIfLLVMTargetMissing("AArch64")

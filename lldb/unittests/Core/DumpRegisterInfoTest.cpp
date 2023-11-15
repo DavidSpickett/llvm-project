@@ -102,3 +102,24 @@ TEST(DoDumpRegisterInfoTest, FieldsTable) {
                               "|-------|-------|------|-----|\n"
                               "|   A   |   B   |  C   |  D  |");
 }
+
+TEST(DoDumpRegisterInfoTest, Enumerators) {
+  StreamString strm;
+  RegisterFlags flags(
+      "", 4,
+      {RegisterFlags::Field("A", 24, 31, {{{0, "an_enumerator"}}}),
+       RegisterFlags::Field("B", 16, 23),
+       RegisterFlags::Field("C", 8, 15, {{1, "another_enumerator"}})});
+
+  DoDumpRegisterInfo(strm, "abc", nullptr, 4, {}, {}, {}, &flags, 100);
+  ASSERT_EQ(strm.GetString(), "       Name: abc\n"
+                              "       Size: 4 bytes (32 bits)\n"
+                              "\n"
+                              "| 31-24 | 23-16 | 15-8 | 7-0 |\n"
+                              "|-------|-------|------|-----|\n"
+                              "|   A   |   B   |  C   |     |\n"
+                              "\n"
+                              "A: 0 = an_enumerator\n"
+                              "\n"
+                              "C: 1 = another_enumerator");
+}

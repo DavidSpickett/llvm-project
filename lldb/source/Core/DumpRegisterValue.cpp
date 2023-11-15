@@ -47,6 +47,7 @@ static void dump_type_value(lldb_private::CompilerType &fields_type, T value,
   lldb::ValueObjectSP vobj_sp = lldb_private::ValueObjectConstResult::Create(
       exe_scope, fields_type, lldb_private::ConstString(), data_extractor);
   lldb_private::DumpValueObjectOptions dump_options;
+  // TODO: can we get it to print the enum name *and* value?
   lldb_private::DumpValueObjectOptions::ChildPrintingDecider decider =
       [](lldb_private::ConstString varname) {
         // Unnamed bit-fields are padding that we don't want to show.

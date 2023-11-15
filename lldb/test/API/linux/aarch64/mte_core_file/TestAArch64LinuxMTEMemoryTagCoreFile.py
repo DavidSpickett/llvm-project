@@ -239,7 +239,23 @@ class AArch64LinuxMTEMemoryTagCoreFileTestCase(TestBase):
 
         if self.hasXMLSupport():
             expected.append(
-                "(TAGS = 65535, TCF_ASYNC = 0, TCF_SYNC = 1, TAGGED_ADDR_ENABLE = 1)"
+                "(TAGS = 65535, TCF = TCF_SYNC (1), TAGGED_ADDR_ENABLE = 1)"
             )
 
         self.expect("register read mte_ctrl", substrs=expected)
+
+        if self.hasXMLSupport():
+            # Should get enumerator descriptions for TCF
+            self.expect(
+                "register info mte_ctrl",
+                substrs=[
+                    "TCF: 0 = TCF_NONE\n"
+                    "       Ignore tag check faults\n"
+                    "     1 = TCF_SYNC\n"
+                    "       Synchronous tag check fault mode\n"
+                    "     2 = TCF_ASYNC\n"
+                    "       Asynchronous tag check fault mode\n"
+                    "     3 = TCF_ASYMM\n"
+                    "       Synchronous read asynchronous write tag check fault mode"
+                ],
+            )

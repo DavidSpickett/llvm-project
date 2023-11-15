@@ -260,6 +260,143 @@ TEST(RegisterFlagsTest, AsTable) {
             max_many_columns.AsTable(23));
 }
 
+TEST(RegisterFlagsTest, DumpEnums) {
+  ASSERT_EQ(RegisterFlags("", 8, {RegisterFlags::Field{"A", 0}}).DumpEnums(80),
+            "");
+
+  ASSERT_EQ(
+      RegisterFlags("", 8,
+                    {RegisterFlags::Field{"A", 0, 0, {{0, "an_enumerator"}}}})
+          .DumpEnums(80),
+      "A: 0 = an_enumerator");
+
+  // If width is smaller than the enumerator name, print it anyway.
+  ASSERT_EQ(
+      RegisterFlags("", 8,
+                    {RegisterFlags::Field{"A", 0, 0, {{0, "an_enumerator"}}}})
+          .DumpEnums(5),
+      "A: 0 = an_enumerator");
+
+  // Mutliple values can go on the same line, up to the width.
+  ASSERT_EQ(
+      RegisterFlags("", 8,
+                    {RegisterFlags::Field{
+                        "A",
+                        0,
+                        2,
+                        {{0, "an_enumerator"},
+                         {1, "another_enumerator"},
+                         {2, "a_very_very_long_enumerator_has_its_own_line"},
+                         {3, "small"},
+                         {4, "small2"}}}})
+          // Width is chosen to be exactly enough to allow 0 and 1 enumerators
+          // on the first line.
+          .DumpEnums(45),
+      "A: 0 = an_enumerator, 1 = another_enumerator,\n"
+      "   2 = a_very_very_long_enumerator_has_its_own_line,\n"
+      "   3 = small, 4 = small2");
+
+  // If they all exceed width, one per line.
+  ASSERT_EQ(RegisterFlags("", 8,
+                          {RegisterFlags::Field{"A",
+                                                0,
+                                                1,
+                                                {{0, "an_enumerator"},
+                                                 {1, "another_enumerator"},
+                                                 {2, "a_longer_enumerator"}}}})
+                .DumpEnums(5),
+            "A: 0 = an_enumerator,\n"
+            "   1 = another_enumerator,\n"
+            "   2 = a_longer_enumerator");
+
+  // If the name is already > the width, put one value per line.
+  ASSERT_EQ(
+      RegisterFlags(
+          "", 8,
+          {RegisterFlags::Field{
+              "AReallyLongFieldName", 0, 1, {{0, "a"}, {1, "b"}, {2, "c"}}}})
+          .DumpEnums(10),
+      "AReallyLongFieldName: 0 = a,\n"
+      "                      1 = b,\n"
+      "                      2 = c");
+
+  // Fields are separated by a blank line. Indentation of lines split by width
+  // is set by the size of the fields name (as opposed to some max of all field
+  // names).
+  ASSERT_EQ(
+      RegisterFlags(
+          "", 8,
+          {RegisterFlags::Field{
+               "Ab", 1, 1, {{0, "an_enumerator"}, {1, "another_enumerator"}}},
+           RegisterFlags::Field{
+               "Cdef",
+               0,
+               0,
+               {{0, "Cdef_enumerator_1"}, {1, "Cdef_enumerator_2"}}}})
+          .DumpEnums(10),
+      "Ab: 0 = an_enumerator,\n"
+      "    1 = another_enumerator\n"
+      "\n"
+      "Cdef: 0 = Cdef_enumerator_1,\n"
+      "      1 = Cdef_enumerator_2");
+
+  // Having fields without enumerators shouldn't produce any extra newlines.
+  ASSERT_EQ(RegisterFlags(
+                "", 8,
+                {
+                    RegisterFlags::Field{"A", 4, 4},
+                    RegisterFlags::Field{"B", 3, 3, {{0, "an_enumerator_B"}}},
+                    RegisterFlags::Field{"C", 2, 2},
+                    RegisterFlags::Field{"D", 1, 1, {{0, "an_enumerator_D"}}},
+                    RegisterFlags::Field{"E", 0, 0},
+                })
+                .DumpEnums(80),
+            "B: 0 = an_enumerator_B\n"
+            "\n"
+            "D: 0 = an_enumerator_D");
+
+  // Having just 1 description changes the layout.
+  ASSERT_EQ(
+      RegisterFlags("", 8,
+                    {RegisterFlags::Field{
+                        "A", 0, 0, {{0, "an_enumerator", "A description."}}}})
+          .DumpEnums(80),
+      "A: 0 = an_enumerator\n"
+      "     A description.");
+
+  // There can be a mix of enumerators with and without descriptions.
+  ASSERT_EQ(
+      RegisterFlags("", 8,
+                    {RegisterFlags::Field{"A",
+                                          0,
+                                          1,
+                                          {{0, "a", "A description."},
+                                           {1, "b", ""},
+                                           {2, "c", "Another description."}}}})
+          .DumpEnums(80),
+      "A: 0 = a\n"
+      "     A description.\n"
+      "   1 = b\n"
+      "   2 = c\n"
+      "     Another description.");
+
+  // Since we are printing at minimum one value per line and letting the
+  // terminal wrap the description, terminal width isn't used in this mode.
+  ASSERT_EQ(RegisterFlags(
+                "", 8,
+                {RegisterFlags::Field{
+                    "A",
+                    0,
+                    1,
+                    {{0, "a", "A description that is longer than width."}}}})
+                .DumpEnums(10),
+            "A: 0 = a\n"
+            "     A description that is longer than width.");
+
+  // TODO: should we use the description layout for *all* enums? It's way
+  // simpler. If we do, save a branch with the old layout.
+}
+
 TEST(RegisterFieldsTest, ToXML) {
   StreamString strm;
 
@@ -306,5 +443,34 @@ TEST(RegisterFieldsTest, ToXML) {
             "  <field name=\"C&apos;\" start=\"2\" end=\"2\"/>\n"
             "  <field name=\"D&quot;\" start=\"1\" end=\"1\"/>\n"
             "  <field name=\"E&amp;\" start=\"0\" end=\"0\"/>\n"
+            "</flags>\n");
+
+  // Should include enumerators if we have them. Their names should also have
+  // XML unsafe characters replaced.
+  strm.Clear();
+  RegisterFlags("Enumerators", 8,
+                {RegisterFlags::Field("NoEnumerators", 4),
+                 RegisterFlags::Field("OneEnumerator", 3, 3, {{0, "a"}}),
+                 RegisterFlags::Field(
+                     "ManyEnumerators", 0, 2,
+                     {{0, "A<"}, {1, "B>"}, {2, "C'"}, {3, "D\""}, {4, "E&"}})})
+      .ToXML(strm);
+  ASSERT_EQ(strm.GetString(),
+            "<flags id=\"Enumerators\" size=\"8\">\n"
+            "  <field name=\"NoEnumerators\" start=\"4\" end=\"4\"/>\n"
+            "  <field name=\"OneEnumerator\" start=\"3\" end=\"3\">\n"
+            "    <enum>\n"
+            "      <enumerator name=\"a\" value=\"0\"/>\n"
+            "    </enum>\n"
+            "  </field>\n"
+            "  <field name=\"ManyEnumerators\" start=\"0\" end=\"2\">\n"
+            "    <enum>\n"
+            "      <enumerator name=\"A&lt;\" value=\"0\"/>\n"
+            "      <enumerator name=\"B&gt;\" value=\"1\"/>\n"
+            "      <enumerator name=\"C&apos;\" value=\"2\"/>\n"
+            "      <enumerator name=\"D&quot;\" value=\"3\"/>\n"
+            "      <enumerator name=\"E&amp;\" value=\"4\"/>\n"
+            "    </enum>\n"
+            "  </field>\n"
             "</flags>\n");
 }

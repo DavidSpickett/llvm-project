@@ -4180,6 +4180,114 @@ struct GdbServerTargetInfo {
   RegisterSetMap reg_set_map;
 };
 
+static RegisterFlags::Field::Enum
+ParseFieldEnumEnumerators(XMLNode enum_node, uint64_t max_value) {
+  Log *log(GetLog(GDBRLog::Process));
+  RegisterFlags::Field::Enum enumerators;
+  std::set<uint64_t> values_seen;
+
+  enum_node.ForEachChildElementWithName("enumerator", [&enumerators,
+                                                       &values_seen, max_value,
+                                                       &log](
+                                                          const XMLNode &
+                                                              enumerator_node) {
+    std::optional<llvm::StringRef> name;
+    std::optional<uint64_t> value;
+    // Optional, defaults to "".
+    llvm::StringRef description;
+
+    enumerator_node.ForEachAttribute([&name, &value, &description, &values_seen,
+                                      max_value,
+                                      &log](const llvm::StringRef &attr_name,
+                                            const llvm::StringRef &attr_value) {
+      if (attr_name == "name") {
+        if (attr_value.size())
+          name = attr_value;
+        else
+          LLDB_LOG(log, "ProcessGDBRemote::ParseFlagsFieldEnum "
+                        "Ignoring empty name in field enumerator");
+      } else if (attr_name == "value") {
+        uint64_t parsed_value = 0;
+        if (llvm::to_integer(attr_value, parsed_value)) {
+          if (parsed_value > max_value) {
+            LLDB_LOG(log,
+                     "ProcessGDBRemote::ParseFlagsFieldEnum "
+                     "Ignoring field enumerator value \"{0}\", which is "
+                     "too large "
+                     " to be represented by its field",
+                     attr_value.data());
+          } else if (values_seen.find(parsed_value) != values_seen.end())
+            LLDB_LOG(log,
+                     "ProcessGDBRemote::ParseFlagsFieldEnum "
+                     "Ignoring field enumerator with duplicate value \"{0}\"",
+                     attr_value.data());
+          else {
+            value = parsed_value;
+            // We do not add to the seen values here, because the enumerator
+            // may still fail to parse.
+          }
+        } else
+          LLDB_LOG(log,
+                   "ProcessGDBRemote::ParseFlagsFieldEnum "
+                   "Invalid value \"{0}\" in "
+                   "field enumerator",
+                   attr_value.data());
+      } else if (attr_name == "description") {
+        description = attr_value.data();
+      } else
+        LLDB_LOG(log,
+                 "ProcessGDBRemote::ParseFlagsFieldEnum Ignoring "
+                 "unknown attribute "
+                 "\"{0}\" in field enumerator",
+                 attr_name.data());
+
+      return true;
+    });
+
+    // Value and name are required, description is optional.
+    if (value && name) {
+      values_seen.insert(*value);
+      enumerators.push_back({*value, name->str(), description.str()});
+    }
+
+    return true;
+  });
+
+  return enumerators;
+}
+
+static RegisterFlags::Field::Enum ParseFieldEnum(XMLNode field_node,
+                                                 const std::string &field_name,
+                                                 uint64_t max_value) {
+  Log *log(GetLog(GDBRLog::Process));
+  RegisterFlags::Field::Enum enumerators;
+
+  // Walk all the <enum> children.
+  field_node.ForEachChildElementWithName(
+      "enum",
+      [&field_name, &log, &enumerators, max_value](const XMLNode enum_node) {
+        if (enumerators.empty()) {
+          // We have not found a valid <enum> yet, try to parse this one.
+          enumerators = ParseFieldEnumEnumerators(enum_node, max_value);
+          // Continue to walk <enum>s in case this one didn't parse correctly,
+          // or we need to log to tell the user we're ignoring the rest.
+          return true;
+        } else {
+          // There could be many <enum> elements, but we will only use the first
+          // one that parses correctly.
+          LLDB_LOG(log,
+                   "ProcessGDBRemote::ParseFieldEnum Ignoring extra <enum> "
+                   "elements in field %s",
+                   field_name);
+
+          // Don't look at any more <enum> after we've logged this once.
+          return false;
+        }
+      });
+
+  return enumerators;
+}
+
 static std::vector<RegisterFlags::Field> ParseFlagsFields(XMLNode flags_node,
                                                           unsigned size) {
   Log *log(GetLog(GDBRLog::Process));
@@ -4193,8 +4301,9 @@ static std::vector<RegisterFlags::Field> ParseFlagsFields(XMLNode flags_node,
     std::optional<llvm::StringRef> name;
     std::optional<unsigned> start;
     std::optional<unsigned> end;
+    std::optional<llvm::StringRef> type;
 
-    field_node.ForEachAttribute([&name, &start, &end, max_start_bit,
+    field_node.ForEachAttribute([&name, &start, &end, &type, max_start_bit,
                                  &log](const llvm::StringRef &attr_name,
                                        const llvm::StringRef &attr_value) {
       // Note that XML in general requires that each of these attributes only
@@ -4241,8 +4350,10 @@ static std::vector<RegisterFlags::Field> ParseFlagsFields(XMLNode flags_node,
                    attr_value.data());
         }
       } else if (attr_name == "type") {
-        // Type is a known attribute but we do not currently use it and it is
-        // not required.
+        // Type is optional and we only use it to know whether we should attempt
+        // to render any enums defined for this field. As lldb can only do so
+        // for boolean and integer like types.
+        type = attr_value;
       } else {
         LLDB_LOG(
             log,
@@ -4255,14 +4366,43 @@ static std::vector<RegisterFlags::Field> ParseFlagsFields(XMLNode flags_node,
     });
 
     if (name && start && end) {
-      if (*start > *end) {
-        LLDB_LOG(
-            log,
-            "ProcessGDBRemote::ParseFlagsFields Start {0} > end {1} in field "
-            "\"{2}\", ignoring",
-            *start, *end, name->data());
-      } else {
-        fields.push_back(RegisterFlags::Field(name->str(), *start, *end));
+      if (*start > *end)
+        LLDB_LOG(log,
+                 "ProcessGDBRemote::ParseFlagsFields Start {0} > end {1} in field "
+                 "\"{2}\", ignoring",
+                 *start, *end, name->data());
+      else {
+        if (RegisterFlags::Field::GetSizeInBits(*start, *end) > 64)
+          LLDB_LOG(
+              log,
+              "ProcessGDBRemote::ParseFlagsFields Ignoring field \"{2}\" that has "
+              " size > 64 bits, this is not supported",
+              name->data());
+        else {
+          uint64_t max_value = RegisterFlags::Field::GetMaxValue(*start, *end);
+          // Try to get an enum first, so that we later only log discarded enums
+          // for fields that actually had one.
+          RegisterFlags::Field::Enum enumerators =
+              ParseFieldEnum(field_node, name->str(), max_value);
+
+          // We cannot format enumerators for anything that isn't the default
+          // boolean (single bit fields) or unsigned int (>1 bit fields).
+          if (enumerators.size() && type && type->size()) {
+            // It's possible some servers set type to "boolean" or similair, but
+            // the spec doesn't give a list of valid types, so be conservative
+            // here and reject any non-empty type.
+            enumerators.clear();
+            LLDB_LOG(
+                log,
+                "ProcessGDBRemote::ParseFlagsFields Ignoring enum for field "
+                "\"{0}\" that has "
+                " type \"{}\" which is an unsupported type for enum display.",
+                name->data(), type->data());
+          }
+
+          fields.push_back(
+              RegisterFlags::Field(name->str(), *start, *end, enumerators));
+        }
       }
     }
 

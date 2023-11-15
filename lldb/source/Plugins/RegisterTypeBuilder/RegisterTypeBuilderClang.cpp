@@ -43,8 +43,7 @@ CompilerType RegisterTypeBuilderClang::GetRegisterType(
       ScratchTypeSystemClang::GetForTarget(m_target);
   assert(type_system);
 
-  std::string register_type_name = "__lldb_register_fields_";
-  register_type_name += name;
+  std::string register_type_name = "__lldb_register_fields_" + name;
   // See if we have made this type before and can reuse it.
   CompilerType fields_type =
       type_system->GetTypeForIdentifier<clang::CXXRecordDecl>(
@@ -67,8 +66,29 @@ CompilerType RegisterTypeBuilderClang::GetRegisterType(
     // We assume that RegisterFlags has padded and sorted the fields
     // already.
     for (const RegisterFlags::Field &field : flags.GetFields()) {
+      CompilerType field_type = field_uint_type;
+
+      const RegisterFlags::Field::Enum &enumerators = field.GetEnum();
+      if (enumerators.size()) {
+        std::string enum_type_name =
+            register_type_name + "_" + field.GetName() + "_enum";
+        field_type = type_system->CreateEnumerationType(
+            enum_type_name, type_system->GetTranslationUnitDecl(),
+            OptionalClangModuleID(), Declaration(), field_uint_type, false);
+
+        type_system->StartTagDeclarationDefinition(field_type);
+
+        Declaration decl;
+        for (auto enumerator : enumerators)
+          type_system->AddEnumerationValueToEnumerationType(
+              field_type, decl, enumerator.m_name.c_str(), enumerator.m_value,
+              byte_size * 8);
+
+        type_system->CompleteTagDeclarationDefinition(field_type);
+      }
+
       type_system->AddFieldToRecordType(fields_type, field.GetName(),
-                                        field_uint_type, lldb::eAccessPublic,
+                                        field_type, lldb::eAccessPublic,
                                         field.GetSizeInBits());
     }
 
