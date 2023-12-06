@@ -24,8 +24,8 @@ jobs:
     if: >-
       (github.repository == 'DavidSpickett/llvm-project') &&
       (github.event.action == 'opened') &&
-      (github.event.pull_request.author_association == 'OWNER' ||
-       github.event.pull_request.author_association == 'FIRST_TIMER')
+      (github.event.pull_request.author_association == 'FIRST_TIMER' ||
+       github.event.pull_request.author_association == 'OWNER')
     steps:
       - name: Setup Automation Script
         run: |
