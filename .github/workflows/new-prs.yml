@@ -22,9 +22,9 @@ jobs:
     # Only comment on PRs that have been opened for the first time, by someone
     # new to LLVM or to GitHub as a whole.
     if: >-
-      (github.repository == 'llvm/llvm-project') &&
+      (github.repository == 'DavidSpickett/llvm-project') &&
       (github.event.action == 'opened') &&
-      (github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR' ||
+      (github.event.pull_request.author_association == 'OWNER' ||
        github.event.pull_request.author_association == 'FIRST_TIMER')
     steps:
       - name: Setup Automation Script
