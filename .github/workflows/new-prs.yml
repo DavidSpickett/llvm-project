@@ -29,8 +29,7 @@ jobs:
       (github.event.pull_request.author_association != 'COLLABORATOR') &&
       (github.event.pull_request.author_association != 'CONTRIBUTOR') &&
       (github.event.pull_request.author_association != 'MANNEQUIN') &&
-      (github.event.pull_request.author_association != 'MEMBER') &&
-      (github.event.pull_request.author_association != 'OWNER')
+      (github.event.pull_request.author_association != 'MEMBER')
     steps:
       - name: Setup Automation Script
         run: |
