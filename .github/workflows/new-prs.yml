@@ -15,6 +15,14 @@ on:
       - synchronize
 
 jobs:
+  dumpevent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump GitHub Context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: |
+          echo "$GITHUB_CONTEXT"
   greeter:
     runs-on: ubuntu-latest
     permissions:
