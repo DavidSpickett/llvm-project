@@ -15,14 +15,13 @@ on:
       - synchronize
 
 jobs:
-  dumpevent:
+  print-author-association:
     runs-on: ubuntu-latest
     steps:
-      - name: Dump GitHub Context
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
+      - name: Print Author Association
+          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
         run: |
-          echo "$GITHUB_CONTEXT"
+          echo "$AUTHOR_ASSOCIATION"
   greeter:
     runs-on: ubuntu-latest
     permissions:
