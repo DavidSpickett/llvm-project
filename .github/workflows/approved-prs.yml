@@ -18,13 +18,9 @@ jobs:
       pull-requests: write
     # If this PR was approved, and is authored by a new contributor.
     if: >-
-      (github.repository == 'llvm/llvm-project') &&
-      (github.event.review.state == 'APPROVED') &&
-      (github.event.pull_request.author_association != 'COLLABORATOR') &&
-      (github.event.pull_request.author_association != 'CONTRIBUTOR') &&
-      (github.event.pull_request.author_association != 'MANNEQUIN') &&
-      (github.event.pull_request.author_association != 'MEMBER') &&
-      (github.event.pull_request.author_association != 'OWNER')
+      (github.repository == 'DavidSpickett/llvm-project') &&
+      (github.event.review.state != 'APPROVED') &&
+      (github.event.pull_request.author_association == 'OWNER')
     steps:
       - name: Checkout Automation Script
         uses: actions/checkout@v4
