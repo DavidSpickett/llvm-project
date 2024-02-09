@@ -55,6 +55,11 @@ static void dump_type_value(lldb_private::CompilerType &fields_type, T value,
       };
   dump_options.SetChildPrintingDecider(decider).SetHideRootType(true);
 
+  vobj_sp->SetEnumsAlwaysShowValue(true);
+  size_t num_children = vobj_sp->GetNumChildren();
+  for (size_t i = 0; i < num_children; ++i)
+    vobj_sp->GetChildAtIndex(i)->SetEnumsAlwaysShowValue(true);
+
   vobj_sp->Dump(strm, dump_options);
 }
 
