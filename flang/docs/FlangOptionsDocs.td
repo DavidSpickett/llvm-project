@@ -24,7 +24,7 @@ Introduction
 
 }];
 
-  string Program = "flang";
+  string Program = "Flang";
   list<string> VisibilityMask = ["FlangOption"];
   list<string> IgnoreFlags = ["HelpHidden", "Unsupported", "Ignored"];
 }

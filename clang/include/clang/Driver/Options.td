@@ -95,19 +95,22 @@ class DocFlatten { bit DocFlatten = 1; }
 // Groups
 
 def Action_Group : OptionGroup<"<action group>">, DocName<"Actions">,
+                   // If "%Program" is found in this text it will be replaced
+                   // with the name of the program generating the documentation
+                   // (for example "Flang").
                    DocBrief<[{The action to perform on the input.}]>;
 
 // Meta-group for options which are only used for compilation,
 // and not linking etc.
 def CompileOnly_Group : OptionGroup<"<CompileOnly group>">,
                         DocName<"Compilation options">, DocBrief<[{
-Flags controlling the behavior of Clang during compilation. These flags have
+Flags controlling the behavior of %Program during compilation. These flags have
 no effect during actions that do not perform compilation.}]>;
 
 def Preprocessor_Group : OptionGroup<"<Preprocessor group>">,
                          Group<CompileOnly_Group>,
                          DocName<"Preprocessor options">, DocBrief<[{
-Flags controlling the behavior of the Clang preprocessor.}]>;
+Flags controlling the behavior of the %Program preprocessor.}]>;
 
 def IncludePath_Group : OptionGroup<"<I/i group>">, Group<Preprocessor_Group>,
                         DocName<"Include path management">,
@@ -129,7 +132,7 @@ Flags allowing the state of the preprocessor to be dumped in various ways.}]>;
 
 def Diag_Group : OptionGroup<"<W/R group>">, Group<CompileOnly_Group>,
                  DocName<"Diagnostic options">, DocBrief<[{
-Flags controlling which warnings, errors, and remarks Clang will generate.
+Flags controlling which warnings, errors, and remarks %Program will generate.
 See the :doc:`full list of warning and remark flags <DiagnosticsReference>`.}]>;
 
 def R_Group : OptionGroup<"<R group>">, Group<Diag_Group>, DocFlatten;

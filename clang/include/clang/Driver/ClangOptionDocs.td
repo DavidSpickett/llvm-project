@@ -27,7 +27,7 @@ GCC-compatible ``clang`` and ``clang++`` drivers.
 
 }];
 
-  string Program = "clang";
+  string Program = "Clang";
   // Note: We *must* use DefaultVis and not ClangOption, since that's
   // the name of the actual TableGen record. The alias will not work.
   list<string> VisibilityMask = ["DefaultVis"];

@@ -225,15 +225,38 @@ void emitHeading(int Depth, std::string Heading, raw_ostream &OS) {
 
 /// Get the value of field \p Primary, if possible. If \p Primary does not
 /// exist, get the value of \p Fallback and escape it for rST emission.
+/// If the text contains "%Program" (prior to escaping) and \p is not empty,
+/// "%Program" will be replaced with \p Program.
 std::string getRSTStringWithTextFallback(const Record *R, StringRef Primary,
-                                         StringRef Fallback) {
+                                         StringRef Fallback,
+                                         StringRef Program = StringRef()) {
   for (auto Field : {Primary, Fallback}) {
     if (auto *V = R->getValue(Field)) {
       StringRef Value;
       if (auto *SV = dyn_cast_or_null<StringInit>(V->getValue()))
         Value = SV->getValue();
-      if (!Value.empty())
-        return Field == Primary ? Value.str() : escapeRST(Value);
+      if (!Value.empty()) {
+        std::string StringValue;
+        if (Program.empty()) {
+          StringValue = Value;
+        } else {
+          // Replace %Program with the program's name e.g. "Flang".
+          const StringRef Replace = "%Program";
+
+          while (Value.size()) {
+            StringRef::size_type FoundPos = Value.find(Replace);
+            if (FoundPos == std::string_view::npos) {
+              StringValue += Value;
+              Value = StringRef();
+            } else {
+              StringValue += Value.take_front(FoundPos).str() + Program.str();
+              Value = Value.drop_front(FoundPos + Replace.size());
+            }
+          }
+        }
+
+        return Field == Primary ? StringValue : escapeRST(StringValue);
+      }
     }
   }
   return std::string(StringRef());
@@ -342,9 +365,13 @@ void emitOption(const DocumentedOption &Option, const Record *DocInfo,
       })];
   for (auto &S : SphinxOptionIDs)
     NextSuffix[S] = SphinxWorkaroundSuffix + 1;
+
+  // Previously the program name was lowercase like "clang", but now that we
+  // use it to substitute into text it may be "Clang" instead. Use lowercase
+  // here so we do not break links that previously worked.
+  std::string Program = DocInfo->getValueAsString("Program").lower();
   if (SphinxWorkaroundSuffix)
-    OS << ".. program:: " << DocInfo->getValueAsString("Program")
-       << SphinxWorkaroundSuffix << "\n";
+    OS << ".. program:: " << Program << SphinxWorkaroundSuffix << "\n";
 
   // Emit the names of the option.
   OS << ".. option:: ";
@@ -353,7 +380,7 @@ void emitOption(const DocumentedOption &Option, const Record *DocInfo,
     EmittedAny = emitOptionNames(Option, OS, EmittedAny);
   });
   if (SphinxWorkaroundSuffix)
-    OS << "\n.. program:: " << DocInfo->getValueAsString("Program");
+    OS << "\n.. program:: " << Program;
   OS << "\n\n";
 
   // Emit the description, if we have one.
@@ -395,7 +422,8 @@ void emitGroup(int Depth, const DocumentedGroup &Group, const Record *DocInfo,
 
   // Emit the description, if we have one.
   std::string Description =
-      getRSTStringWithTextFallback(Group.Group, "DocBrief", "HelpText");
+      getRSTStringWithTextFallback(Group.Group, "DocBrief", "HelpText",
+                                   DocInfo->getValueAsString("Program"));
   if (!Description.empty())
     OS << Description << "\n\n";
 
@@ -421,7 +449,7 @@ void clang::EmitClangOptDocs(RecordKeeper &Records, raw_ostream &OS) {
     return;
   }
   OS << DocInfo->getValueAsString("Intro") << "\n";
-  OS << ".. program:: " << DocInfo->getValueAsString("Program") << "\n";
+  OS << ".. program:: " << DocInfo->getValueAsString("Program").lower() << "\n";
 
   emitDocumentation(0, extractDocumentation(Records, DocInfo), DocInfo, OS);
 }
