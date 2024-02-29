@@ -7,10 +7,10 @@ import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
-from lldbsuite.test.lldbpexpect import PExpectTest
+from lldbsuite.test.lldbpexpect import PExpectInteractiveTest
 
 
-class EditlineTest(PExpectTest):
+class EditlineTest(PExpectInteractiveTest):
     @skipIfAsan
     @skipIfEditlineSupportMissing
     @skipIf(oslist=["linux"], archs=["arm", "aarch64"])

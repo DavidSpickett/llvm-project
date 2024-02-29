@@ -35,13 +35,13 @@ class CompileRunToBreakpointBench(BenchBase):
         print("lldb_avg/gdb_avg: %f" % (self.lldb_avg / self.gdb_avg))
 
     def run_lldb_turnaround(self, exe, function, count):
-        import pexpect
+        import pexpect; from pexpect import popen_spawn
 
         def run_one_round():
             prompt = self.child_prompt
 
             # So that the child gets torn down after the test.
-            self.child = pexpect.spawn(
+            self.child = pexpect.popen_spawn.PopenSpawn(
                 "%s %s %s" % (lldbtest_config.lldbExec, self.lldbOption, exe)
             )
             child = self.child
@@ -80,13 +80,13 @@ class CompileRunToBreakpointBench(BenchBase):
         self.child = None
 
     def run_gdb_turnaround(self, exe, function, count):
-        import pexpect
+        import pexpect; from pexpect import popen_spawn
 
         def run_one_round():
             prompt = self.child_prompt
 
             # So that the child gets torn down after the test.
-            self.child = pexpect.spawn("gdb --nx %s" % exe)
+            self.child = pexpect.popen_spawn.PopenSpawn("gdb --nx %s" % exe)
             child = self.child
 
             # Turn on logging for what the child sends back.

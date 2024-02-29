@@ -82,7 +82,7 @@ class DriverBatchModeTest(PExpectTest):
 
         # Then lldb should exit.
         child.expect_exact("exited")
-        import pexpect
+        import pexpect; from pexpect import popen_spawn
 
         child.expect(pexpect.EOF)
 
@@ -116,7 +116,7 @@ class DriverBatchModeTest(PExpectTest):
 
         # Then lldb should exit.
         child.expect_exact("exited")
-        import pexpect
+        import pexpect; from pexpect import popen_spawn
 
         child.expect(pexpect.EOF)
 
@@ -140,9 +140,9 @@ class DriverBatchModeTest(PExpectTest):
         # care must be taken not to treat that as a reason to exit batch mode.
 
         # Start up the process by hand and wait for it to get to the wait loop.
-        import pexpect
+        import pexpect; from pexpect import popen_spawn
 
-        self.victim = pexpect.spawn("%s WAIT" % (exe))
+        self.victim = pexpect.popen_spawn.PopenSpawn("%s WAIT" % (exe))
         if self.victim is None:
             self.fail("Could not spawn ", exe, ".")
 

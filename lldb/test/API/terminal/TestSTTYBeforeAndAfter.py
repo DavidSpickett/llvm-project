@@ -21,6 +21,7 @@ class TestSTTYBeforeAndAfter(TestBase):
 
     @expectedFailureAll(
         hostoslist=["windows"],
+        # Can't use PopenSpawn because lldb is not interactive when run that way.
         bugnumber="llvm.org/pr22274: need a pexpect replacement for windows",
     )
     @no_debug_info_test

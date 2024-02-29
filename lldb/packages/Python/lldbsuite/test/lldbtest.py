@@ -994,8 +994,8 @@ class Base(unittest.TestCase):
     def deletePexpectChild(self):
         # This is for the case of directly spawning 'lldb' and interacting with it
         # using pexpect.
-        if self.child and self.child.isalive():
-            import pexpect
+        if self.child: #and self.child.isalive():
+            import pexpect; from pexpect import popen_spawn
 
             with recording(self, traceAlways) as sbuf:
                 print("tearing down the child process....", file=sbuf)
@@ -1018,7 +1018,9 @@ class Base(unittest.TestCase):
                 # child is already terminated
             finally:
                 # Give it one final blow to make sure the child is terminated.
-                self.child.close()
+                #self.child.close()
+                import signal
+                self.child.kill(signal.SIGINT)
 
     def tearDown(self):
         """Fixture for unittest test case teardown."""

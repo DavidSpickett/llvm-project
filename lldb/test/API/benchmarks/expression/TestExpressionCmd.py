@@ -31,7 +31,7 @@ class ExpressionEvaluationCase(BenchBase):
         print("lldb expr cmd benchmark:", self.stopwatch)
 
     def run_lldb_repeated_exprs(self, exe_name, count):
-        import pexpect
+        import pexpect; from pexpect import popen_spawn
 
         exe = self.getBuildArtifact(exe_name)
 
@@ -43,7 +43,7 @@ class ExpressionEvaluationCase(BenchBase):
         self.stopwatch.reset()
         for i in range(count):
             # So that the child gets torn down after the test.
-            self.child = pexpect.spawn(
+            self.child = pexpect.popen_spawn.PopenSpawn(
                 "%s %s %s" % (lldbtest_config.lldbExec, self.lldbOption, exe)
             )
             child = self.child

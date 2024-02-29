@@ -8,10 +8,10 @@ from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 import pexpect
-from lldbsuite.test.lldbpexpect import PExpectTest
+from lldbsuite.test.lldbpexpect import PExpectInteractiveTest
 
 
-class DriverQuitSpeedTest(PExpectTest):
+class DriverQuitSpeedTest(PExpectInteractiveTest):
     source = "main.c"
 
     def test_run_quit(self):

@@ -35,7 +35,7 @@ class StartupDelaysBench(BenchBase):
         print("lldb startup delay (run to breakpoint) benchmark:", self.stopwatch3)
 
     def run_startup_delays_bench(self, exe, break_spec, count):
-        import pexpect
+        import pexpect; from pexpect import popen_spawn
 
         # Set self.child_prompt, which is "(lldb) ".
         self.child_prompt = "(lldb) "
@@ -46,7 +46,7 @@ class StartupDelaysBench(BenchBase):
         self.stopwatch2.reset()
         for i in range(count):
             # So that the child gets torn down after the test.
-            self.child = pexpect.spawn(
+            self.child = pexpect.popen_spawn.PopenSpawn(
                 "%s %s" % (lldbtest_config.lldbExec, self.lldbOption)
             )
             child = self.child

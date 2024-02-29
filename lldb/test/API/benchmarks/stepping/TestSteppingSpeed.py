@@ -33,14 +33,14 @@ class SteppingSpeedBench(BenchBase):
         print("lldb stepping benchmark:", self.stopwatch)
 
     def run_lldb_steppings(self, exe, break_spec, count):
-        import pexpect
+        import pexpect; from pexpect import popen_spawn
 
         # Set self.child_prompt, which is "(lldb) ".
         self.child_prompt = "(lldb) "
         prompt = self.child_prompt
 
         # So that the child gets torn down after the test.
-        self.child = pexpect.spawn(
+        self.child = pexpect.popen_spawn.PopenSpawn(
             "%s %s %s" % (lldbtest_config.lldbExec, self.lldbOption, exe)
         )
         child = self.child

@@ -5,14 +5,14 @@ Tests autosuggestion using pexpect.
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
-from lldbsuite.test.lldbpexpect import PExpectTest
+from lldbsuite.test.lldbpexpect import PExpectInteractiveTest
 
 
 def cursor_horizontal_abs(s):
     return "\x1b[" + str(len(s) + 1) + "G"
 
 
-class TestCase(PExpectTest):
+class TestCase(PExpectInteractiveTest):
     ANSI_FAINT = "\x1b[2m"
     ANSI_RESET = "\x1b[0m"
     ANSI_RED = "\x1b[31m"

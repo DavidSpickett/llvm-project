@@ -10,10 +10,10 @@ import re
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
-from lldbsuite.test.lldbpexpect import PExpectTest
+from lldbsuite.test.lldbpexpect import PExpectInteractiveTest
 
 
-class TestTrimmedProgressReporting(PExpectTest):
+class TestTrimmedProgressReporting(PExpectInteractiveTest):
     def do_test(self, term_width, pattern_list):
         self.build()
         # Start with a small window

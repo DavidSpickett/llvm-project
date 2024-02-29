@@ -8,12 +8,13 @@ from .lldbtest import *
 from . import lldbutil
 from lldbsuite.test.decorators import *
 
-
 @skipIfRemote
-@skipIfWindows  # llvm.org/pr22274: need a pexpect replacement for windows
 class PExpectTest(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
     PROMPT = "(lldb) "
+    # Whether this test needs the process to be interactive, if it does, use
+    # the PExpectInteractiveTest instead of this one.
+    INTERACTIVE = False
 
     def expect_prompt(self):
         self.child.expect_exact(self.PROMPT)
@@ -55,19 +56,44 @@ class PExpectTest(TestBase):
         env["TERM"] = "vt100"
         env["HOME"] = self.getBuildDir()
 
-        import pexpect
+        import pexpect; from pexpect import popen_spawn
 
-        self.child = pexpect.spawn(
-            args[0],
-            args=args[1:],
-            logfile=logfile,
-            timeout=timeout,
-            dimensions=dimensions,
-            env=env,
-            encoding=encoding,
-        )
-        self.child.ptyproc.delayafterclose = timeout / 10
-        self.child.ptyproc.delayafterterminate = timeout / 10
+        # Cannot use Windows compatible PopenSpawn because lldb is not interactive
+        # when you spawn that way.
+
+        using_popenspawn = False
+        # Can't set terminal dimension using PopenSpawn, or run the process
+        # iteractively.
+        if dimensions is None and not self.INTERACTIVE:
+            using_popenspawn = True
+            self.child = pexpect.popen_spawn.PopenSpawn(
+                args,
+                logfile=logfile,
+                timeout=timeout,
+                env=env,
+                encoding=encoding,
+            )
+        else:
+            if lldbplatformutil.getPlatform() == "windows":
+                # See llvm.org/pr22274.
+                self.skipTest("Cannot use pexpect.spawn on Windows.")
+
+            self.child = pexpect.spawn(
+                args[0],
+                args=args[1:],
+                logfile=logfile,
+                timeout=timeout,
+                dimensions=dimensions,
+                env=env,
+                encoding=encoding,
+            )
+
+        if using_popenspawn:
+            self.child.delayafterclose = timeout / 10
+            self.child.delayafterterminate = timeout / 10
+        else:
+            self.child.ptyproc.delayafterclose = timeout / 10
+            self.child.ptyproc.delayafterterminate = timeout / 10
 
         if post_spawn is not None:
             post_spawn()
@@ -105,3 +131,6 @@ class PExpectTest(TestBase):
         by a certain amount of characters.
         """
         return b"\x1b\[" + str(chars_to_move).encode("utf-8") + b"C"
+
+class PExpectInteractiveTest(PExpectTest):
+    INTERACTIVE = True

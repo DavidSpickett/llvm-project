@@ -54,9 +54,9 @@ class DarwinNSLogOutputTestCase(TestBase):
         prompt = self.child_prompt
 
         # So that the child gets torn down after the test.
-        import pexpect
+        import pexpect; from pexpect import popen_spawn
 
-        self.child = pexpect.spawn(
+        self.child = pexpect.popen_spawn.PopenSpawn(
             "%s %s %s" % (lldbtest_config.lldbExec, self.lldbOption, exe),
             encoding="utf-8",
         )
