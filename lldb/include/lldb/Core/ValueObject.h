@@ -405,6 +405,8 @@ public:
     return GetCompilerType().IsIntegerType(is_signed);
   }
 
+  bool IsEnumType() { return GetCompilerType().IsEnumerationType(); }
+
   virtual void GetExpressionPath(
       Stream &s,
       GetExpressionPathFormat = eGetExpressionPathFormatDereferencePointers);
