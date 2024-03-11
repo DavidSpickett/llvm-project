@@ -238,7 +238,7 @@ class AArch64LinuxMTEMemoryTagCoreFileTestCase(TestBase):
         expected = ["mte_ctrl = 0x000000000007fffb"]
 
         if self.hasXMLSupport():
-            expected.append("(TAGS = 65535, TCF = TCF_SYNC, TAGGED_ADDR_ENABLE = 1)")
+            expected.append("(TAGS = 65535, TCF = TCF_SYNC (1), TAGGED_ADDR_ENABLE = 1)")
 
         self.expect("register read mte_ctrl", substrs=expected)
 

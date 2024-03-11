@@ -54,6 +54,18 @@ static void dump_type_value(lldb_private::CompilerType &fields_type, T value,
       };
   dump_options.SetChildPrintingDecider(decider).SetHideRootType(true);
 
+  vobj_sp->SetEnumsAlwaysShowValue(true);
+  llvm::Expected<uint32_t> num_children = vobj_sp->GetNumChildren();
+  // We built this type so this should never fail but if it does just bail
+  // and hope the user reports a bug to us.
+  if (!num_children) {
+    llvm::consumeError(num_children.takeError());
+    return;
+  }
+
+  for (size_t i = 0; i < *num_children; ++i)
+    vobj_sp->GetChildAtIndex(i)->SetEnumsAlwaysShowValue(true);
+
   if (llvm::Error error = vobj_sp->Dump(strm, dump_options))
     strm << "error: " << toString(std::move(error));
 }

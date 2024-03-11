@@ -725,7 +725,7 @@ class TestXMLRegisterFlags(GDBRemoteTestBase):
         )
 
         self.expect("register info cpsr", patterns=["E: 1 = def$"])
-        self.expect("register read cpsr", patterns=["\(E = def\)$"])
+        self.expect("register read cpsr", patterns=["\(E = def \(1\)\)$"])
 
     @skipIfXmlSupportMissing
     @skipIfRemote
@@ -1014,7 +1014,7 @@ class TestXMLRegisterFlags(GDBRemoteTestBase):
 
         self.expect("register info cpsr", patterns=expected_info)
 
-        expected_read = ["\(f2 = valid, f1 = valid\)$"]
+        expected_read = ["\(f2 = valid \(1\), f1 = valid \(1\)\)$"]
         self.expect("register read x0", patterns=expected_read)
         self.expect("register read cpsr", patterns=expected_read)
 
@@ -1055,4 +1055,4 @@ class TestXMLRegisterFlags(GDBRemoteTestBase):
             ],
         )
 
-        self.expect("register read x0", patterns=["\(foo = foo_1, foo = foo_0\)$"])
+        self.expect("register read x0", patterns=["\(foo = foo_1 \(1\), foo = foo_0 \(1\)\)$"])
