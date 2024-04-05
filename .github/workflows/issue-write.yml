@@ -5,6 +5,7 @@ on:
     workflows:
       - "Check code formatting"
       - "Check for private emails used in PRs"
+      - "Prompt reviewers to merge PRs on behalf of authors"
     types:
       - completed
 
