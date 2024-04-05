@@ -326,8 +326,8 @@ class PRMergeOnBehalfInformation:
 
     def run(self) -> bool:
         # Check this first because it only costs 1 API point.
-        if self.can_merge(self.author):
-            return
+        #if self.can_merge(self.author):
+        #    return
 
         # A review can be approved more than once, only comment the first time.
         for comment in self.pr.as_issue().get_comments():
@@ -349,7 +349,7 @@ Please find someone who has merge permissions who can merge it on the author's b
         # write to the PR. Instead write the comment to a file that will be
         # picked up by issue-write.
         with open("comments", "w") as f:
-            json.dump({"body": comment})
+            json.dump({"body": comment}, f)
 
         return True
 

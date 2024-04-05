@@ -14,8 +14,7 @@ jobs:
     permissions:
       pull-requests: write
     if: >-
-      (github.repository == 'llvm/llvm-project') &&
-      (github.event.review.state == 'APPROVED')
+      (github.repository == 'DavidSpickett/llvm-project')
     steps:
       - name: Checkout Automation Script
         uses: actions/checkout@v4
@@ -29,10 +28,9 @@ jobs:
           pip install -r requirements.txt
 
       - name: Generate Merge On Behalf Comment
-        working-directory: ./llvm/utils/git/
         run: |
-          # Writes to a file "comments"
-          python3 ./github-automation.py \
+          # Writes to a file "comments".
+          python3 ./llvm/utils/git/github-automation.py \
             --token '${{ secrets.GITHUB_TOKEN }}' \
             pr-merge-on-behalf-information \
             --issue-number "${{ github.event.pull_request.number }}" \
@@ -41,9 +39,7 @@ jobs:
 
       - uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 #v4.3.0
         if: always()
-        working-directory: ./llvm/utils/git/
         with:
-          name: Upload Comments File
+          name: workflow-args
           path: |
             comments
-      
