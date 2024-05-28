@@ -38,12 +38,24 @@ RegisterTypeBuilderClang::RegisterTypeBuilderClang(Target &target)
 
 CompilerType RegisterTypeBuilderClang::GetRegisterType(
     const std::string &name, const lldb_private::RegisterFlags &flags,
-    uint32_t byte_size) {
-  lldb::TypeSystemClangSP type_system =
-      ScratchTypeSystemClang::GetForTarget(m_target);
+    uint32_t byte_size, TypeSystemClang *type_system) {
+
+  // TODO: better way to do this
+  // TODO: hopefully we don't get asked to make a type for expr and register in
+  // the same type system
+  //       maybe we should name the types differently anyway, because they will
+  //       be different
+  bool for_expression = type_system != nullptr;
+  if (!type_system) {
+    // TODO: .get on an SP isn't great
+    type_system = ScratchTypeSystemClang::GetForTarget(m_target).get();
+  }
+
   assert(type_system);
 
-  std::string register_type_name = "__lldb_register_fields_" + name;
+  std::string register_type_name = "__lldb_register_fields_";
+  register_type_name += for_expression ? "expr_" : "display_";
+  register_type_name += name;
   // See if we have made this type before and can reuse it.
   CompilerType fields_type =
       type_system->GetTypeForIdentifier<clang::CXXRecordDecl>(
@@ -65,33 +77,68 @@ CompilerType RegisterTypeBuilderClang::GetRegisterType(
 
     // We assume that RegisterFlags has padded and sorted the fields
     // already.
-    for (const RegisterFlags::Field &field : flags.GetFields()) {
-      CompilerType field_type = field_uint_type;
 
-      if (const FieldEnum *enum_type = field.GetEnum()) {
-        const FieldEnum::Enumerators &enumerators = enum_type->GetEnumerators();
-        if (!enumerators.empty()) {
-          std::string enum_type_name =
-              register_type_name + "_" + field.GetName() + "_enum";
-          field_type = type_system->CreateEnumerationType(
-              enum_type_name, type_system->GetTranslationUnitDecl(),
-              OptionalClangModuleID(), Declaration(), field_uint_type, false);
+    // TODO: should this be based on the endian of the target/type system/ what
+    // the caller asked for?
+    if (for_expression) {
+      for (auto it = flags.GetFields().crbegin();
+           it != flags.GetFields().crend(); ++it) {
+        CompilerType field_type = field_uint_type;
 
-          type_system->StartTagDeclarationDefinition(field_type);
+        if (const FieldEnum *enum_type = it->GetEnum()) {
+          const FieldEnum::Enumerators &enumerators = enum_type->GetEnumerators();
+          if (!enumerators.empty()) {
+            std::string enum_type_name =
+                register_type_name + "_" + it->GetName() + "_enum";
+            field_type = type_system->CreateEnumerationType(
+                enum_type_name, type_system->GetTranslationUnitDecl(),
+                OptionalClangModuleID(), Declaration(), field_uint_type, false);
 
-          Declaration decl;
-          for (auto enumerator : enumerators)
-            type_system->AddEnumerationValueToEnumerationType(
-                field_type, decl, enumerator.m_name.c_str(), enumerator.m_value,
-                byte_size * 8);
+            type_system->StartTagDeclarationDefinition(field_type);
 
-          type_system->CompleteTagDeclarationDefinition(field_type);
+            Declaration decl;
+            for (auto enumerator : enumerators)
+              type_system->AddEnumerationValueToEnumerationType(
+                  field_type, decl, enumerator.m_name.c_str(), enumerator.m_value,
+                  byte_size * 8);
+
+            type_system->CompleteTagDeclarationDefinition(field_type);
+          }
         }
-      }
 
-      type_system->AddFieldToRecordType(fields_type, field.GetName(),
-                                        field_type, lldb::eAccessPublic,
-                                        field.GetSizeInBits());
+        type_system->AddFieldToRecordType(fields_type, it->GetName(),
+                                          field_type, lldb::eAccessPublic,
+                                          it->GetSizeInBits());
+      }
+    } else {
+      for (const RegisterFlags::Field &field : flags.GetFields()) {
+        CompilerType field_type = field_uint_type;
+
+        if (const FieldEnum *enum_type = field.GetEnum()) {
+          const FieldEnum::Enumerators &enumerators = enum_type->GetEnumerators();
+          if (!enumerators.empty()) {
+            std::string enum_type_name =
+                register_type_name + "_" + field.GetName() + "_enum";
+            field_type = type_system->CreateEnumerationType(
+                enum_type_name, type_system->GetTranslationUnitDecl(),
+                OptionalClangModuleID(), Declaration(), field_uint_type, false);
+
+            type_system->StartTagDeclarationDefinition(field_type);
+
+            Declaration decl;
+            for (auto enumerator : enumerators)
+              type_system->AddEnumerationValueToEnumerationType(
+                  field_type, decl, enumerator.m_name.c_str(), enumerator.m_value,
+                  byte_size * 8);
+
+            type_system->CompleteTagDeclarationDefinition(field_type);
+          }
+        }
+
+        type_system->AddFieldToRecordType(fields_type, field.GetName(),
+                                          field_type, lldb::eAccessPublic,
+                                          field.GetSizeInBits());
+      }
     }
 
     type_system->CompleteTagDeclarationDefinition(fields_type);

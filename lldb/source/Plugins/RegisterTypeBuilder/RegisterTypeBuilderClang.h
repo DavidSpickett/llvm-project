@@ -30,7 +30,8 @@ public:
 
   CompilerType GetRegisterType(const std::string &name,
                                const lldb_private::RegisterFlags &flags,
-                               uint32_t byte_size) override;
+                               uint32_t byte_size,
+                               TypeSystemClang *type_system = nullptr) override;
 
 private:
   Target &m_target;
