@@ -1397,7 +1397,10 @@ void ClangExpressionDeclMap::FindExternalVisibleDecls(
 
     assert(name.GetStringRef().starts_with("$"));
     llvm::StringRef reg_name = name.GetStringRef().substr(1);
-
+    // TODO: some workaround for registers actually called xyz_struct?
+    // TODO: some registers may not be struct once we support union and field,
+    //       what to call this? _typed ?
+    bool want_register_type = reg_name.consume_back("_struct");
     if (m_parser_vars->m_exe_ctx.GetRegisterContext()) {
       const RegisterInfo *reg_info(
           m_parser_vars->m_exe_ctx.GetRegisterContext()->GetRegisterInfoByName(
@@ -1405,8 +1408,7 @@ void ClangExpressionDeclMap::FindExternalVisibleDecls(
 
       if (reg_info) {
         LLDB_LOG(log, "  CEDM::FEVD Found register {0}", reg_info->name);
-
-        AddOneRegister(context, reg_info);
+        AddOneRegister(context, reg_info, want_register_type);
       }
     }
     return;
@@ -1753,12 +1755,22 @@ void ClangExpressionDeclMap::AddOneGenericVariable(NameSearchContext &context,
 }
 
 void ClangExpressionDeclMap::AddOneRegister(NameSearchContext &context,
-                                            const RegisterInfo *reg_info) {
+                                            // tODO: why not &?
+                                            const RegisterInfo *reg_info,
+                                            bool want_register_type) {
   Log *log = GetLog(LLDBLog::Expressions);
 
-  CompilerType clang_type =
-      m_clang_ast_context->GetBuiltinTypeForEncodingAndBitSize(
-          reg_info->encoding, reg_info->byte_size * 8);
+  CompilerType clang_type;
+
+  if (want_register_type) {
+    if (reg_info->flags_type)
+      if (Target *target = m_parser_vars->m_exe_ctx.GetTargetPtr())
+        clang_type =
+            target->GetRegisterType(reg_info->name, *reg_info->flags_type,
+                                    reg_info->byte_size, m_clang_ast_context);
+  } else
+    clang_type = m_clang_ast_context->GetBuiltinTypeForEncodingAndBitSize(
+        reg_info->encoding, reg_info->byte_size * 8);
 
   if (!clang_type) {
     LLDB_LOG(log, "  Tried to add a type for {0}, but couldn't get one",

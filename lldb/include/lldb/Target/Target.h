@@ -1280,7 +1280,9 @@ public:
 
   CompilerType GetRegisterType(const std::string &name,
                                const lldb_private::RegisterFlags &flags,
-                               uint32_t byte_size);
+                               uint32_t byte_size,
+                               // TODO: some better way to do this
+                               TypeSystemClang *type_system = nullptr);
 
   // Target Stop Hooks
   class StopHook : public UserID {
