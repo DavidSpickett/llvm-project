@@ -38,12 +38,23 @@ RegisterTypeBuilderClang::RegisterTypeBuilderClang(Target &target)
 
 CompilerType RegisterTypeBuilderClang::GetRegisterType(
     const std::string &name, const lldb_private::RegisterFlags &flags,
-    uint32_t byte_size) {
-  lldb::TypeSystemClangSP type_system =
-      ScratchTypeSystemClang::GetForTarget(m_target);
+    uint32_t byte_size, TypeSystemClang *type_system) {
+
+  // TODO: better way to do this
+  // TODO: hopefully we don't get asked to make a type for expr and register in
+  // the same type system
+  //       maybe we should name the types differently anyway, because they will
+  //       be different
+  bool for_expression = type_system != nullptr;
+  if (!type_system) {
+    // TODO: .get on an SP isn't great
+    type_system = ScratchTypeSystemClang::GetForTarget(m_target).get();
+  }
+
   assert(type_system);
 
   std::string register_type_name = "__lldb_register_fields_";
+  register_type_name += for_expression ? "expr_" : "display_";
   register_type_name += name;
   // See if we have made this type before and can reuse it.
   CompilerType fields_type =
@@ -66,10 +77,22 @@ CompilerType RegisterTypeBuilderClang::GetRegisterType(
 
     // We assume that RegisterFlags has padded and sorted the fields
     // already.
-    for (const RegisterFlags::Field &field : flags.GetFields()) {
-      type_system->AddFieldToRecordType(fields_type, field.GetName(),
-                                        field_uint_type, lldb::eAccessPublic,
-                                        field.GetSizeInBits());
+
+    // TODO: should this be based on the endian of the target/type system/ what
+    // the caller asked for?
+    if (for_expression) {
+      for (auto it = flags.GetFields().crbegin();
+           it != flags.GetFields().crend(); ++it) {
+        type_system->AddFieldToRecordType(fields_type, it->GetName(),
+                                          field_uint_type, lldb::eAccessPublic,
+                                          it->GetSizeInBits());
+      }
+    } else {
+      for (const RegisterFlags::Field &field : flags.GetFields()) {
+        type_system->AddFieldToRecordType(fields_type, field.GetName(),
+                                          field_uint_type, lldb::eAccessPublic,
+                                          field.GetSizeInBits());
+      }
     }
 
     type_system->CompleteTagDeclarationDefinition(fields_type);
