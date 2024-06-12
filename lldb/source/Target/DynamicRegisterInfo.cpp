@@ -420,7 +420,7 @@ size_t DynamicRegisterInfo::SetRegisterInfo(
           {reg.regnum_ehframe, reg.regnum_dwarf, reg.regnum_generic,
            reg.regnum_remote, local_regnum},
           // value_regs and invalidate_regs are filled by Finalize()
-          nullptr, nullptr, reg.flags_type, nullptr
+          nullptr, nullptr, reg.flags_type, reg.description.AsCString()
     };
 
     m_regs.push_back(reg_info);

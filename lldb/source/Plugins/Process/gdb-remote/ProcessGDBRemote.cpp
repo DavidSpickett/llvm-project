@@ -4455,6 +4455,8 @@ bool ParseRegisters(
           } else if (name == "invalidate_regnums") {
             SplitCommaSeparatedRegisterNumberString(
                 value, reg_info.invalidate_regs, 0);
+          } else if (name == "description") {
+            reg_info.description.SetString(value);
           } else {
             LLDB_LOGF(log,
                       "ProcessGDBRemote::ParseRegisters unhandled reg "

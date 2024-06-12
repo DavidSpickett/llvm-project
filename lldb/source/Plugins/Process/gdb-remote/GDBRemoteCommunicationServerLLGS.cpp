@@ -3154,6 +3154,14 @@ GDBRemoteCommunicationServerLLGS::BuildTargetXml() {
       response.Printf("\" ");
     }
 
+    if (reg_info->description) {
+      //TODO: multi line stuff?
+      std::string escaped_description;
+      llvm::raw_string_ostream escape_strm(escaped_description);
+      llvm::printHTMLEscaped(reg_info->description, escape_strm);
+      response << "description=\"" << escaped_description << "\" ";
+    }
+
     response.Printf("/>\n");
   }
 

@@ -654,3 +654,25 @@ class TestXMLRegisterFlags(GDBRemoteTestBase):
             "register info cpsr",
             substrs=["| A< | B> | C' | D\" | E& |"],
         )
+
+    # TODO: check that the gdb remote side adds xml escapes too!
+
+    @skipIfXmlSupportMissing
+    @skipIfRemote
+    def test_register_description(self):
+        # register info should show the register description. That description
+        # should have any XML escapes converted.
+        self.setup_register_test(
+            """\
+          <reg name="pc" bitsize="64"/>
+          <reg name="cpsr" regnum="33" bitsize="32"
+            description="This is a description &amp; &quot; &apos; &gt; &lt;"/>"""
+        )
+
+        self.expect("register info cpsr",
+        substrs=[dedent("""\
+               Name: cpsr
+               Size: 4 bytes (32 bits)
+            In sets: general (index 0)
+
+        This is a description & " ' > <""")])
