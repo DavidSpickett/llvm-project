@@ -63,7 +63,7 @@ void lldb_private::DumpRegisterInfo(Stream &strm, RegisterContext &ctx,
 
   DoDumpRegisterInfo(strm, info.name, info.alt_name, info.byte_size,
                      invalidates, read_from, in_sets, info.flags_type,
-                     terminal_width);
+                     info.description, terminal_width);
 }
 
 template <typename ElementType>
@@ -89,7 +89,7 @@ void lldb_private::DoDumpRegisterInfo(
     const std::vector<const char *> &invalidates,
     const std::vector<const char *> &read_from,
     const std::vector<SetInfo> &in_sets, const RegisterFlags *flags_type,
-    uint32_t terminal_width) {
+    const char *description, uint32_t terminal_width) {
   strm << "       Name: " << name;
   if (alt_name)
     strm << " (" << alt_name << ")";
@@ -110,6 +110,9 @@ void lldb_private::DoDumpRegisterInfo(
     strm.Printf("%s (index %d)", info.first, info.second);
   };
   DumpList(strm, "    In sets: ", in_sets, emit_set);
+
+  if (description)
+    strm.Printf("\n\n%s", description);
 
   if (flags_type)
     strm.Printf("\n\n%s", flags_type->AsTable(terminal_width).c_str());
