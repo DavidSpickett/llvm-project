@@ -80,7 +80,9 @@ addPartialRegisters(std::vector<DynamicRegisterInfo::Register> &regs,
         LLDB_INVALID_REGNUM,
         {base_index},
         {},
-        subreg_offset};
+        subreg_offset,
+        {},
+        {}};
 
     addSupplementaryRegister(regs, new_reg);
   }
@@ -120,7 +122,7 @@ addCombinedRegisters(std::vector<DynamicRegisterInfo::Register> &regs,
         LLDB_INVALID_REGNUM,
         LLDB_INVALID_REGNUM,
         {base_index1, base_index2},
-        {}};
+        {}, {}, {}, {}};
 
     addSupplementaryRegister(regs, new_reg);
   }

@@ -53,7 +53,7 @@ using namespace riscv_dwarf;
   {                                                                            \
     #reg, #alt, 8, GPR_OFFSET(gpr_##reg##_riscv - gpr_first_riscv),            \
     lldb::eEncodingUint, lldb::eFormatHex,                                     \
-    GPR64_KIND(gpr_##reg, generic_kind), nullptr, nullptr, nullptr,            \
+    GPR64_KIND(gpr_##reg, generic_kind), nullptr, nullptr, nullptr, nullptr,   \
   }
 
 #define DEFINE_FPR64(reg, generic_kind) DEFINE_FPR64_ALT(reg, reg, generic_kind)
@@ -64,7 +64,7 @@ using namespace riscv_dwarf;
   {                                                                            \
     #reg, #alt, size, FPR_OFFSET(fpr_##reg##_riscv - fpr_first_riscv),         \
     lldb::eEncodingUint, lldb::eFormatHex,                                     \
-    FPR64_KIND(fpr_##reg, generic_kind), nullptr, nullptr, nullptr,           \
+    FPR64_KIND(fpr_##reg, generic_kind), nullptr, nullptr, nullptr, nullptr,   \
   }
 
 #define DEFINE_VPR(reg, generic_kind) DEFINE_VPR_ALT(reg, reg, generic_kind)
@@ -74,7 +74,7 @@ using namespace riscv_dwarf;
 #define DEFINE_VPR_ALT(reg, alt, generic_kind)                                 \
   {                                                                            \
     #reg, #alt, 16, 0, lldb::eEncodingVector, lldb::eFormatVectorOfUInt8,      \
-    VPR_KIND(vpr_##reg, generic_kind), nullptr, nullptr, nullptr               \
+    VPR_KIND(vpr_##reg, generic_kind), nullptr, nullptr, nullptr, nullptr      \
   }
 
 // clang-format on

@@ -67,6 +67,7 @@ struct RegisterInfo {
   /// this is mutable. The data pointed to is still const, so you must swap a
   /// whole set of flags for another.
   mutable const RegisterFlags *flags_type;
+  const char* description;
 
   llvm::ArrayRef<uint8_t> data(const uint8_t *context_base) const {
     return llvm::ArrayRef<uint8_t>(context_base + byte_offset, byte_size);

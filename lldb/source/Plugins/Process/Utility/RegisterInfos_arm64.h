@@ -491,7 +491,7 @@ static uint32_t g_d31_invalidates[] = {fpu_v31, fpu_s31, LLDB_INVALID_REGNUM};
   {                                                                            \
     #reg, nullptr, 8, GPR_OFFSET(gpr_##reg), lldb::eEncodingUint,              \
         lldb::eFormatHex, GPR64_KIND(reg, generic_kind), nullptr, nullptr,     \
-        nullptr,                                                               \
+        nullptr, nullptr,                                                      \
   }
 
 // Defines a 64-bit general purpose register
@@ -499,7 +499,7 @@ static uint32_t g_d31_invalidates[] = {fpu_v31, fpu_s31, LLDB_INVALID_REGNUM};
   {                                                                            \
     #reg, #alt, 8, GPR_OFFSET(gpr_##reg), lldb::eEncodingUint,                 \
         lldb::eFormatHex, GPR64_KIND(reg, generic_kind), nullptr, nullptr,     \
-        nullptr,                                                               \
+        nullptr, nullptr,                                                      \
   }
 
 // Defines a 32-bit general purpose pseudo register
@@ -508,7 +508,7 @@ static uint32_t g_d31_invalidates[] = {fpu_v31, fpu_s31, LLDB_INVALID_REGNUM};
     #wreg, nullptr, 4,                                                         \
         GPR_OFFSET(gpr_##xreg) + GPR_W_PSEUDO_REG_ENDIAN_OFFSET,               \
         lldb::eEncodingUint, lldb::eFormatHex, LLDB_KIND(gpr_##wreg),          \
-        g_contained_##xreg, g_##wreg##_invalidates, nullptr,                   \
+        g_contained_##xreg, g_##wreg##_invalidates, nullptr, nullptr,          \
   }
 
 // Defines a vector register with 16-byte size
@@ -516,6 +516,7 @@ static uint32_t g_d31_invalidates[] = {fpu_v31, fpu_s31, LLDB_INVALID_REGNUM};
   {                                                                            \
     #reg, nullptr, 16, FPU_OFFSET(fpu_##reg - fpu_v0), lldb::eEncodingVector,  \
         lldb::eFormatVectorOfUInt8, VREG_KIND(reg), nullptr, nullptr, nullptr, \
+        nullptr,                                                               \
   }
 
 // Defines S and D pseudo registers mapping over corresponding vector register
@@ -523,7 +524,7 @@ static uint32_t g_d31_invalidates[] = {fpu_v31, fpu_s31, LLDB_INVALID_REGNUM};
   {                                                                            \
     #reg, nullptr, size, FPU_OFFSET(fpu_##vreg - fpu_v0) + offset,             \
         lldb::eEncodingIEEE754, lldb::eFormatFloat, LLDB_KIND(fpu_##reg),      \
-        g_contained_##vreg, g_##reg##_invalidates, nullptr,                    \
+        g_contained_##vreg, g_##reg##_invalidates, nullptr, nullptr,           \
   }
 
 // Defines miscellaneous status and control registers like cpsr, fpsr etc
@@ -531,14 +532,14 @@ static uint32_t g_d31_invalidates[] = {fpu_v31, fpu_s31, LLDB_INVALID_REGNUM};
   {                                                                            \
     #reg, nullptr, size, TYPE##_OFFSET_NAME(reg), lldb::eEncodingUint,         \
         lldb::eFormatHex, MISC_##TYPE##_KIND(lldb_kind), nullptr, nullptr,     \
-        nullptr,                                                               \
+        nullptr, nullptr,                                                      \
   }
 
 // Defines pointer authentication mask registers
 #define DEFINE_EXTENSION_REG(reg)                                              \
   {                                                                            \
     #reg, nullptr, 8, 0, lldb::eEncodingUint, lldb::eFormatHex,                \
-        KIND_ALL_INVALID, nullptr, nullptr, nullptr,                           \
+        KIND_ALL_INVALID, nullptr, nullptr, nullptr, nullptr,                  \
   }
 
 static lldb_private::RegisterInfo g_register_infos_arm64_le[] = {

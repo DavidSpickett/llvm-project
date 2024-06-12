@@ -115,6 +115,7 @@ enum dwarf_regnums {
   {                                                                            \
     #reg, alt, 8, 0, eEncodingUint, eFormatHex, {kind1, kind2, kind3, kind4 }, \
                                                  nullptr, nullptr, nullptr,    \
+                                                 nullptr,                      \
   }
 
 static const RegisterInfo g_register_infos[] = {
@@ -201,6 +202,7 @@ static const RegisterInfo g_register_infos[] = {
      eEncodingUint,
      eFormatHex,
      {dwarf_cfa, dwarf_cfa, LLDB_INVALID_REGNUM, LLDB_INVALID_REGNUM},
+     nullptr,
      nullptr,
      nullptr,
      nullptr,

@@ -31,7 +31,7 @@ using namespace minidump;
   {                                                                            \
     "r" #i, nullptr, 4, OFFSET(r) + i * 4, eEncodingUint, eFormatHex,          \
         {ehframe_r##i, dwarf_r##i, INV, INV, reg_r##i}, nullptr, nullptr,      \
-        nullptr,                                                               \
+        nullptr, nullptr,                                                      \
   }
 
 #define DEF_R_ARG(i, n)                                                        \
@@ -39,28 +39,28 @@ using namespace minidump;
     "r" #i, "arg" #n, 4, OFFSET(r) + i * 4, eEncodingUint, eFormatHex,         \
         {ehframe_r##i, dwarf_r##i, LLDB_REGNUM_GENERIC_ARG1 + i, INV,          \
          reg_r##i},                                                            \
-        nullptr, nullptr, nullptr,                                             \
+        nullptr, nullptr, nullptr, nullptr,                                    \
   }
 
 #define DEF_D(i)                                                               \
   {                                                                            \
     "d" #i, nullptr, 8, OFFSET(d) + i * 8, eEncodingVector,                    \
         eFormatVectorOfUInt8, {dwarf_d##i, dwarf_d##i, INV, INV, reg_d##i},    \
-        nullptr, nullptr, nullptr,                                             \
+        nullptr, nullptr, nullptr, nullptr,                                    \
   }
 
 #define DEF_S(i)                                                               \
   {                                                                            \
     "s" #i, nullptr, 4, OFFSET(s) + i * 4, eEncodingIEEE754, eFormatFloat,     \
         {dwarf_s##i, dwarf_s##i, INV, INV, reg_s##i}, nullptr, nullptr,        \
-        nullptr,                                                               \
+        nullptr, nullptr,                                                      \
   }
 
 #define DEF_Q(i)                                                               \
   {                                                                            \
     "q" #i, nullptr, 16, OFFSET(q) + i * 16, eEncodingVector,                  \
         eFormatVectorOfUInt8, {dwarf_q##i, dwarf_q##i, INV, INV, reg_q##i},    \
-        nullptr, nullptr, nullptr,                                             \
+        nullptr, nullptr, nullptr, nullptr,                                    \
   }
 
 // Zero based LLDB register numbers for this register context
@@ -179,6 +179,7 @@ static RegisterInfo g_reg_info_apple_fp = {
     nullptr,
     nullptr,
     nullptr,
+    nullptr,
 };
 
 static RegisterInfo g_reg_info_fp = {
@@ -189,6 +190,7 @@ static RegisterInfo g_reg_info_fp = {
     eEncodingUint,
     eFormatHex,
     {ehframe_r11, dwarf_r11, LLDB_REGNUM_GENERIC_FP, INV, reg_r11},
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -219,6 +221,7 @@ static RegisterInfo g_reg_infos[] = {
      nullptr,
      nullptr,
      nullptr,
+     nullptr,
     },
     {"lr",
      "r14",
@@ -227,6 +230,7 @@ static RegisterInfo g_reg_infos[] = {
      eEncodingUint,
      eFormatHex,
      {ehframe_lr, dwarf_lr, LLDB_REGNUM_GENERIC_RA, INV, reg_lr},
+     nullptr,
      nullptr,
      nullptr,
      nullptr,
@@ -241,6 +245,7 @@ static RegisterInfo g_reg_infos[] = {
      nullptr,
      nullptr,
      nullptr,
+     nullptr,
     },
     {"cpsr",
      "psr",
@@ -252,6 +257,7 @@ static RegisterInfo g_reg_infos[] = {
      nullptr,
      nullptr,
      nullptr,
+     nullptr,
     },
     {"fpscr",
      nullptr,
@@ -260,6 +266,7 @@ static RegisterInfo g_reg_infos[] = {
      eEncodingUint,
      eFormatHex,
      {INV, INV, INV, INV, reg_fpscr},
+     nullptr,
      nullptr,
      nullptr,
      nullptr,

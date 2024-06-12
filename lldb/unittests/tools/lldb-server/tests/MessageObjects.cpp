@@ -162,6 +162,7 @@ Expected<RegisterInfo> RegisterInfoParser::create(StringRef Response) {
       nullptr,
       nullptr,
       nullptr,
+      nullptr,
   };
   Info.name = ConstString(Elements["name"]).GetCString();
   if (!Info.name)

@@ -47,7 +47,8 @@ protected:
                                           LLDB_INVALID_REGNUM,
                                           static_cast<uint32_t>(m_regs.size()),
                                           value_regs,
-                                          invalidate_regs};
+                                          invalidate_regs,
+                                          {}, {}, {}};
     adder(new_reg);
     return m_regs.size() - 1;
   }

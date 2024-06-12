@@ -123,6 +123,9 @@ static void addPartialRegisters(
         LLDB_INVALID_REGNUM,
         LLDB_INVALID_REGNUM,
         {*full_reg_index},
+        {},
+        {},
+        {},
         {}};
     addSupplementaryRegister(regs, partial_reg);
   }

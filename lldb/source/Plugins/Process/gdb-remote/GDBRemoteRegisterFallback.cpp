@@ -15,7 +15,8 @@ namespace process_gdb_remote {
   DynamicRegisterInfo::Register {                                              \
     ConstString(#name), empty_alt_name, reg_set, size, LLDB_INVALID_INDEX32,   \
         lldb::eEncodingUint, lldb::eFormatHex, LLDB_INVALID_REGNUM,            \
-        LLDB_INVALID_REGNUM, LLDB_INVALID_REGNUM, LLDB_INVALID_REGNUM, {}, {}  \
+        LLDB_INVALID_REGNUM, LLDB_INVALID_REGNUM, LLDB_INVALID_REGNUM, {}, {}, \
+        {}, {}, {}                                                             \
   }
 #define R64(name) REG(name, 8)
 #define R32(name) REG(name, 4)

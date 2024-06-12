@@ -100,6 +100,7 @@ RegisterContextLinux_i386::RegisterContextLinux_i386(
             LLDB_INVALID_REGNUM, LLDB_INVALID_REGNUM},
            nullptr,
            nullptr,
+           nullptr,
            nullptr}) {}
 
 size_t RegisterContextLinux_i386::GetGPRSizeStatic() { return sizeof(GPR); }

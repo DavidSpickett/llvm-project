@@ -60,7 +60,7 @@
                               {LLDB_INVALID_REGNUM, LLDB_INVALID_REGNUM,       \
                                LLDB_INVALID_REGNUM, LLDB_INVALID_REGNUM,       \
                                dbg_##reg##i },                                 \
-                               NULL, NULL, NULL,
+                               NULL, NULL, NULL, NULL,
 #define REG_CONTEXT_SIZE                                                       \
   (sizeof(RegisterInfoPOSIX_arm64::GPR) +                                      \
    sizeof(RegisterInfoPOSIX_arm64::FPU) +                                      \
@@ -88,11 +88,11 @@ static lldb_private::RegisterInfo g_register_infos_sme[] = {
     DEFINE_EXTENSION_REG(svg),
     // 16 is a default size we will change later.
     {"za", nullptr, 16, 0, lldb::eEncodingVector, lldb::eFormatVectorOfUInt8,
-     KIND_ALL_INVALID, nullptr, nullptr, nullptr}};
+     KIND_ALL_INVALID, nullptr, nullptr, nullptr, nullptr}};
 
 static lldb_private::RegisterInfo g_register_infos_sme2[] = {
     {"zt0", nullptr, 64, 0, lldb::eEncodingVector, lldb::eFormatVectorOfUInt8,
-     KIND_ALL_INVALID, nullptr, nullptr, nullptr}};
+     KIND_ALL_INVALID, nullptr, nullptr, nullptr, nullptr}};
 
 // Number of register sets provided by this context.
 enum {
