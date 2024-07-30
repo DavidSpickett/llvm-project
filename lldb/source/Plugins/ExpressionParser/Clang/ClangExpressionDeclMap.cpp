@@ -1792,6 +1792,7 @@ void ClangExpressionDeclMap::AddOneRegister(NameSearchContext &context,
   entity->SetName(ConstString(decl_name.c_str()));
   entity->SetRegisterInfo(reg_info);
   entity->EnableParserVars(GetParserID());
+
   ClangExpressionVariable::ParserVars *parser_vars =
       entity->GetParserVars(GetParserID());
   parser_vars->m_named_decl = var_decl;

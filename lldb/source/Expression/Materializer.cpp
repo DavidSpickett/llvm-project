@@ -1319,9 +1319,16 @@ class EntityRegister : public Materializer::Entity {
 public:
   EntityRegister(const RegisterInfo &register_info)
       : Entity(), m_register_info(register_info) {
+
     // Hard-coding alignment conservatively
     m_size = m_register_info.byte_size;
     m_alignment = m_register_info.byte_size;
+
+    // HAck to accomadate __value
+    if (strcmp(register_info.name, "fpcr") == 0) {
+      m_size *= 2;
+      m_alignment = m_size;
+    }
   }
 
   void Materialize(lldb::StackFrameSP &frame_sp, IRMemoryMap &map,
@@ -1384,6 +1391,19 @@ public:
           m_register_info.name, write_error.AsCString());
       return;
     }
+
+    if (strcmp(m_register_info.name, "fpcr") == 0) {
+      // Write the __value part
+      map.WriteMemory(load_addr + register_data.GetByteSize(),
+        register_data.GetDataStart(), register_data.GetByteSize(), write_error);
+
+      if (!write_error.Success()) {
+        err.SetErrorStringWithFormat(
+            "couldn't write the contents of register %s: %s",
+            m_register_info.name, write_error.AsCString());
+        return;
+      }
+    }
   }
 
   void Dematerialize(lldb::StackFrameSP &frame_sp, IRMemoryMap &map,
@@ -1428,11 +1448,14 @@ public:
       // No write required, and in particular we avoid errors if the register
       // wasn't writable
 
-      m_register_contents.reset();
-      return;
+      if (strcmp(m_register_info.name, "fpcr") != 0) {
+        m_register_contents.reset();
+        return;
+      }
     }
 
-    m_register_contents.reset();
+    if (strcmp(m_register_info.name, "fpcr") != 0)
+      m_register_contents.reset();
 
     RegisterValue register_value(register_data.GetData(),
                                  register_data.GetByteOrder());
@@ -1440,7 +1463,43 @@ public:
     if (!reg_context_sp->WriteRegister(&m_register_info, register_value)) {
       err.SetErrorStringWithFormat("couldn't write the value of register %s",
                                    m_register_info.name);
-      return;
+      if (strcmp(m_register_info.name, "fpcr") != 0)
+        return;
+    }
+
+    if (strcmp(m_register_info.name, "fpcr") == 0) {
+      printf("checking __Value\n");
+      // Read the __value part.
+      map.GetMemoryData(register_data, load_addr + register_data.GetByteSize(), m_register_info.byte_size,
+                  extract_error);
+      printf("Got memory data\n");
+
+      if (!extract_error.Success()) {
+        err.SetErrorStringWithFormat("couldn't get the data for register %s: %s",
+                                     m_register_info.name,
+                                     extract_error.AsCString());
+        return;
+      }
+
+      if (!memcmp(register_data.GetDataStart(), m_register_contents->GetBytes(),
+                  register_data.GetByteSize())) {
+        // No write required, and in particular we avoid errors if the register
+        // wasn't writable
+        printf("no write needed\n");
+        m_register_contents.reset();
+        return;
+      }
+
+      m_register_contents.reset();
+
+      RegisterValue register_value(register_data.GetData(),
+                                   register_data.GetByteOrder());
+
+      if (!reg_context_sp->WriteRegister(&m_register_info, register_value)) {
+        err.SetErrorStringWithFormat("couldn't write the value of register %s",
+                                     m_register_info.name);
+        return;
+      }
     }
   }
 
@@ -1486,6 +1545,7 @@ uint32_t Materializer::AddRegister(const RegisterInfo &register_info,
                                    Status &err) {
   EntityVector::iterator iter = m_entities.insert(m_entities.end(), EntityUP());
   *iter = std::make_unique<EntityRegister>(register_info);
+
   uint32_t ret = AddStructMember(**iter);
   (*iter)->SetOffset(ret);
   return ret;
