@@ -49,6 +49,12 @@ void gcs_signal() {
       "ret\n");
 }
 
+// These functions are used to observe gcspr_el0 changing as we enter them, and
+// the fault we cause by changing its value.
+void test_func2() { volatile int i = 99; }
+
+void test_func() { test_func2(); }
+
 int main() {
   if (!(getauxval(AT_HWCAP2) & HWCAP2_GCS))
     return 1;
@@ -63,7 +69,16 @@ int main() {
   }
 
   // By now we should have one memory region where the GCS is stored.
-  gcs_signal(); // Set break point at this line.
+
+  // For register read/write tests.
+  test_func();
+
+  // If this was a register test, we would have disabled GCS during the
+  // test_func call. We cannot re-enable it from ptrace so skip this part in
+  // this case.
+  mode = get_gcs_status();
+  if ((mode & 1) == 1)
+    gcs_signal(); // Set break point at this line.
 
   return 0;
 }

@@ -91,6 +91,7 @@ private:
   bool m_pac_mask_is_valid;
   bool m_tls_is_valid;
   size_t m_tls_size;
+  bool m_gcs_is_valid;
 
   struct user_pt_regs m_gpr_arm64; // 64-bit general purpose registers.
 
@@ -133,6 +134,12 @@ private:
   // SME2's ZT is a 512 bit register.
   std::array<uint8_t, 64> m_zt_reg;
 
+  struct gcs_regs {
+    uint64_t features_enabled;
+    uint64_t features_locked;
+    uint64_t gcspr_e0;
+  } m_gcs_regs;
+
   bool IsGPR(unsigned reg) const;
 
   bool IsFPR(unsigned reg) const;
@@ -163,6 +170,10 @@ private:
 
   Status WriteZA();
 
+  Status ReadGCS();
+
+  Status WriteGCS();
+
   // No WriteZAHeader because writing only the header will disable ZA.
   // Instead use WriteZA and ensure you have the correct ZA buffer size set
   // beforehand if you wish to disable it.
@@ -179,6 +190,7 @@ private:
   bool IsPAuth(unsigned reg) const;
   bool IsMTE(unsigned reg) const;
   bool IsTLS(unsigned reg) const;
+  bool IsGCS(unsigned reg) const;
 
   uint64_t GetSVERegVG() { return m_sve_header.vl / 8; }
 
@@ -202,6 +214,8 @@ private:
 
   void *GetSVEBuffer() { return m_sve_ptrace_payload.data(); }
 
+  void *GetGCSBuffer() { return &m_gcs_regs; }
+
   size_t GetSVEHeaderSize() { return sizeof(m_sve_header); }
 
   size_t GetPACMaskSize() { return sizeof(m_pac_mask); }
@@ -221,6 +235,8 @@ private:
   size_t GetSMEPseudoBufferSize() { return sizeof(m_sme_pseudo_regs); }
 
   size_t GetZTBufferSize() { return m_zt_reg.size(); }
+
+  size_t GetGCSBufferSize() { return sizeof(m_gcs_regs); }
 
   llvm::Error ReadHardwareDebugInfo() override;
 

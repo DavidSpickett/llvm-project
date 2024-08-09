@@ -60,9 +60,15 @@
 #define NT_ARM_TAGGED_ADDR_CTRL 0x409 /* Tagged address control register */
 #endif
 
+#ifndef NT_ARM_GCS
+#define NT_ARM_GCS 0x40f /* Guarded Control Stack control registers */
+#endif
+
 #define HWCAP_PACA (1 << 30)
 
 #define HWCAP2_MTE (1 << 18)
+
+#define HWCAP2_GCS (1UL << 63)
 
 using namespace lldb;
 using namespace lldb_private;
@@ -139,8 +145,12 @@ NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
 
     std::optional<uint64_t> auxv_at_hwcap2 =
         process.GetAuxValue(AuxVector::AUXV_AT_HWCAP2);
-    if (auxv_at_hwcap2 && (*auxv_at_hwcap2 & HWCAP2_MTE))
-      opt_regsets.Set(RegisterInfoPOSIX_arm64::eRegsetMaskMTE);
+    if (auxv_at_hwcap2) {
+      if (*auxv_at_hwcap2 & HWCAP2_MTE)
+        opt_regsets.Set(RegisterInfoPOSIX_arm64::eRegsetMaskMTE);
+      if (*auxv_at_hwcap2 & HWCAP2_GCS)
+        opt_regsets.Set(RegisterInfoPOSIX_arm64::eRegsetMaskGCS);
+    }
 
     opt_regsets.Set(RegisterInfoPOSIX_arm64::eRegsetMaskTLS);
 
@@ -183,6 +193,7 @@ NativeRegisterContextLinux_arm64::NativeRegisterContextLinux_arm64(
   ::memset(&m_pac_mask, 0, sizeof(m_pac_mask));
   ::memset(&m_tls_regs, 0, sizeof(m_tls_regs));
   ::memset(&m_sme_pseudo_regs, 0, sizeof(m_sme_pseudo_regs));
+  ::memset(&m_gcs_regs, 0, sizeof(m_gcs_regs));
   std::fill(m_zt_reg.begin(), m_zt_reg.end(), 0);
 
   m_mte_ctrl_reg = 0;
@@ -201,6 +212,7 @@ NativeRegisterContextLinux_arm64::NativeRegisterContextLinux_arm64(
   m_mte_ctrl_is_valid = false;
   m_tls_is_valid = false;
   m_zt_buffer_is_valid = false;
+  m_gcs_is_valid = false;
 
   // SME adds the tpidr2 register
   m_tls_size = GetRegisterInfo().IsSSVEPresent() ? sizeof(m_tls_regs)
@@ -413,6 +425,14 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
       assert(offset < GetSMEPseudoBufferSize());
       src = (uint8_t *)GetSMEPseudoBuffer() + offset;
     }
+  } else if (IsGCS(reg)) {
+    error = ReadGCS();
+    if (error.Fail())
+      return error;
+
+    offset = reg_info->byte_offset - GetRegisterInfo().GetGCSOffset();
+    assert(offset < GetGCSBufferSize());
+    src = (uint8_t *)GetGCSBuffer() + offset;
   } else
     return Status::FromErrorString(
         "failed - register wasn't recognized to be a GPR or an FPR, "
@@ -626,6 +646,17 @@ Status NativeRegisterContextLinux_arm64::WriteRegister(
     } else
       return Status::FromErrorString(
           "Writing to SVG or SVCR is not supported.");
+  } else if (IsGCS(reg)) {
+    error = ReadGCS();
+    if (error.Fail())
+      return error;
+
+    offset = reg_info->byte_offset - GetRegisterInfo().GetGCSOffset();
+    assert(offset < GetGCSBufferSize());
+    dst = (uint8_t *)GetGCSBuffer() + offset;
+    ::memcpy(dst, reg_value.GetBytes(), reg_info->byte_size);
+
+    return WriteGCS();
   }
 
   return Status::FromErrorString("Failed to write register value");
@@ -640,6 +671,7 @@ enum RegisterSetType : uint32_t {
   TLS,
   SME,  // ZA only, because SVCR and SVG are pseudo registers.
   SME2, // ZT only.
+  GCS,  // Guarded Control Stack registers.
 };
 
 static uint8_t *AddRegisterSetType(uint8_t *dst,
@@ -723,6 +755,13 @@ NativeRegisterContextLinux_arm64::CacheAllRegisters(uint32_t &cached_size) {
   // tpidr is always present but tpidr2 depends on SME.
   cached_size += sizeof(RegisterSetType) + GetTLSBufferSize();
   error = ReadTLS();
+
+  if (GetRegisterInfo().IsGCSPresent()) {
+    cached_size += sizeof(RegisterSetType) + GetGCSBufferSize();
+    error = ReadGCS();
+    if (error.Fail())
+      return error;
+  }
 
   return error;
 }
@@ -825,6 +864,11 @@ Status NativeRegisterContextLinux_arm64::ReadAllRegisterValues(
 
   dst = AddSavedRegisters(dst, RegisterSetType::TLS, GetTLSBuffer(),
                           GetTLSBufferSize());
+
+  if (GetRegisterInfo().IsGCSPresent()) {
+    dst = AddSavedRegisters(dst, RegisterSetType::GCS, GetGCSBuffer(),
+                            GetGCSBufferSize());
+  }
 
   return error;
 }
@@ -971,6 +1015,11 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
           GetZTBuffer(), &src, GetZTBufferSize(), m_zt_buffer_is_valid,
           std::bind(&NativeRegisterContextLinux_arm64::WriteZT, this));
       break;
+    case RegisterSetType::GCS:
+      error = RestoreRegisters(
+          GetGCSBuffer(), &src, GetGCSBufferSize(), m_gcs_is_valid,
+          std::bind(&NativeRegisterContextLinux_arm64::WriteGCS, this));
+      break;
     }
 
     if (error.Fail())
@@ -1012,6 +1061,10 @@ bool NativeRegisterContextLinux_arm64::IsMTE(unsigned reg) const {
 
 bool NativeRegisterContextLinux_arm64::IsTLS(unsigned reg) const {
   return GetRegisterInfo().IsTLSReg(reg);
+}
+
+bool NativeRegisterContextLinux_arm64::IsGCS(unsigned reg) const {
+  return GetRegisterInfo().IsGCSReg(reg);
 }
 
 llvm::Error NativeRegisterContextLinux_arm64::ReadHardwareDebugInfo() {
@@ -1161,6 +1214,7 @@ void NativeRegisterContextLinux_arm64::InvalidateAllRegisters() {
   m_mte_ctrl_is_valid = false;
   m_tls_is_valid = false;
   m_zt_buffer_is_valid = false;
+  m_gcs_is_valid = false;
 
   // Update SVE and ZA registers in case there is change in configuration.
   ConfigureRegisterContext();
@@ -1344,6 +1398,40 @@ Status NativeRegisterContextLinux_arm64::WriteTLS() {
   m_tls_is_valid = false;
 
   return WriteRegisterSet(&ioVec, GetTLSBufferSize(), NT_ARM_TLS);
+}
+
+Status NativeRegisterContextLinux_arm64::ReadGCS() {
+  Status error;
+
+  if (m_gcs_is_valid)
+    return error;
+
+  struct iovec ioVec;
+  ioVec.iov_base = GetGCSBuffer();
+  ioVec.iov_len = GetGCSBufferSize();
+
+  error = ReadRegisterSet(&ioVec, GetGCSBufferSize(), NT_ARM_GCS);
+
+  if (error.Success())
+    m_gcs_is_valid = true;
+
+  return error;
+}
+
+Status NativeRegisterContextLinux_arm64::WriteGCS() {
+  Status error;
+
+  error = ReadGCS();
+  if (error.Fail())
+    return error;
+
+  struct iovec ioVec;
+  ioVec.iov_base = GetGCSBuffer();
+  ioVec.iov_len = GetGCSBufferSize();
+
+  m_gcs_is_valid = false;
+
+  return WriteRegisterSet(&ioVec, GetGCSBufferSize(), NT_ARM_GCS);
 }
 
 Status NativeRegisterContextLinux_arm64::ReadZAHeader() {
