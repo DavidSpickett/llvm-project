@@ -190,9 +190,15 @@ class AArch64LinuxGCSTestCase(TestBase):
         stack_push = bool((locked >> STACK_PUSH) & 1)
         new_locked = (locked & ~(1 << STACK_PUSH)) | (int(not stack_push) << STACK_PUSH)
         self.runCmd(f"register write gcs_features_locked 0x{new_locked:x}")
+
+        expected_substrs = [f"gcs_features_locked = 0x{new_locked:016x}"]
+        if self.hasXMLSupport():
+            expected_substrs.append(
+                f"= (PUSH = {(new_locked >> 2) & 1}, WRITE = {(new_locked >> 1) & 1}, ENABLE = {new_locked & 1})"
+            )
         self.expect(
             f"register read gcs_features_locked",
-            substrs=[f"gcs_features_locked = 0x{new_locked:016x}"],
+            substrs=expected_substrs,
         )
 
         # We could prove the write made it to hardware by trying to prctl to change
@@ -206,9 +212,15 @@ class AArch64LinuxGCSTestCase(TestBase):
         # past the fault.
         enabled &= ~1
         self.runCmd(f"register write gcs_features_enabled {enabled}")
+
+        expected_substrs = [f"gcs_features_enabled = 0x{enabled:016x}"]
+        if self.hasXMLSupport():
+            expected_substrs.append(
+                f"= (PUSH = {(enabled >> 2) & 1}, WRITE = {(enabled >> 1) & 1}, ENABLE = {enabled & 1})"
+            )
         self.expect(
             "register read gcs_features_enabled",
-            substrs=[f"gcs_features_enabled = 0x{enabled:016x}"],
+            substrs=expected_substrs,
         )
 
         self.runCmd("continue")
@@ -366,6 +378,16 @@ class AArch64LinuxGCSTestCase(TestBase):
                 "gcs_features_locked = 0x0000000000000000",
                 "gcspr_el0 = 0x0000ffff9e1ffff0",
             ],
+        )
+
+        # Should get register fields for both. They have the same fields.
+        self.expect(
+            "register read gcs_features_enabled",
+            substrs=["= (PUSH = 0, WRITE = 0, ENABLE = 1)"],
+        )
+        self.expect(
+            "register read gcs_features_locked",
+            substrs=["= (PUSH = 0, WRITE = 0, ENABLE = 0)"],
         )
 
         # Core files do not include /proc/pid/smaps, so we cannot see the
