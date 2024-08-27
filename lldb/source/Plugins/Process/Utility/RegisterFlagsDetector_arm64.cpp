@@ -23,8 +23,24 @@
 #define HWCAP2_AFP (1ULL << 20)
 #define HWCAP2_SME (1ULL << 23)
 #define HWCAP2_EBF16 (1ULL << 32)
+#define HWCAP2_GCS (1UL << 63)
 
 using namespace lldb_private;
+
+Arm64RegisterFlagsDetector::Fields
+Arm64RegisterFlagsDetector::DetectGCSFeatureFields(uint64_t hwcap,
+                                                   uint64_t hwcap2) {
+  (void)hwcap;
+
+  if (!(hwcap2 & HWCAP2_GCS))
+    return {};
+
+  return {
+      {"PUSH", 2},
+      {"WRITE", 1},
+      {"ENABLE", 0},
+  };
+}
 
 Arm64RegisterFlagsDetector::Fields
 Arm64RegisterFlagsDetector::DetectSVCRFields(uint64_t hwcap, uint64_t hwcap2) {
