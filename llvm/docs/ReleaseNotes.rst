@@ -208,6 +208,10 @@ Changes to the LLVM tools
 Changes to LLDB
 ---------------------------------
 
+* Support has been added for debugging AArch64 Linux programs that use the
+  Guarded Control Stack extension (GCS). This includes live processes and core
+  files.
+
 Changes to BOLT
 ---------------------------------
 
