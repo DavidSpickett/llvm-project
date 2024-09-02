@@ -24,7 +24,7 @@ using namespace lldb;
 template <typename T>
 static void dump_type_value(lldb_private::CompilerType &fields_type, T value,
                             lldb_private::ExecutionContextScope *exe_scope,
-                            const lldb_private::RegisterInfo &reg_info,
+                            const lldb_private::RegisterFlags &flags_type,
                             lldb_private::Stream &strm) {
   lldb::ByteOrder target_order = exe_scope->CalculateProcess()->GetByteOrder();
 
@@ -33,9 +33,8 @@ static void dump_type_value(lldb_private::CompilerType &fields_type, T value,
   // This is also clang's internal ordering and the order we want to print
   // them. On a big endian host this all matches up, for a little endian
   // host we have to swap the order of the fields before display.
-  if (target_order == lldb::ByteOrder::eByteOrderLittle) {
-    value = reg_info.flags_type->ReverseFieldOrder(value);
-  }
+  if (target_order == lldb::ByteOrder::eByteOrderLittle)
+    value = flags_type.ReverseFieldOrder(value);
 
   // Then we need to match the target's endian on a byte level as well.
   if (lldb_private::endian::InlHostByteOrder() != target_order)
@@ -121,21 +120,23 @@ void lldb_private::DumpRegisterValue(const RegisterValue &reg_val, Stream &s,
                     0,                    // item_bit_offset
                     exe_scope);
 
-  if (!print_flags || !reg_info.flags_type || !exe_scope || !target_sp ||
+  const RegisterFlags *flags_type =
+      llvm::dyn_cast_if_present<RegisterFlags>(reg_info.register_type);
+  if (!print_flags || !flags_type || !exe_scope || !target_sp ||
       (reg_info.byte_size != 4 && reg_info.byte_size != 8))
     return;
 
   CompilerType fields_type = target_sp->GetRegisterType(
-      reg_info.name, *reg_info.flags_type, reg_info.byte_size);
+      reg_info.name, *flags_type, reg_info.byte_size);
 
   // Use a new stream so we can remove a trailing newline later.
   StreamString fields_stream;
 
   if (reg_info.byte_size == 4) {
-    dump_type_value(fields_type, reg_val.GetAsUInt32(), exe_scope, reg_info,
+    dump_type_value(fields_type, reg_val.GetAsUInt32(), exe_scope, *flags_type,
                     fields_stream);
   } else {
-    dump_type_value(fields_type, reg_val.GetAsUInt64(), exe_scope, reg_info,
+    dump_type_value(fields_type, reg_val.GetAsUInt64(), exe_scope, *flags_type,
                     fields_stream);
   }
 
