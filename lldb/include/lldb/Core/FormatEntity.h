@@ -76,7 +76,7 @@ struct Entry {
     FrameRegisterPC,
     FrameRegisterSP,
     FrameRegisterFP,
-    FrameRegisterFlags,
+    FrameRegisterTypeFlags,
     FrameRegisterByName,
     FrameIsArtificial,
     ScriptFrame,

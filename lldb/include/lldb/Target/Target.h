@@ -1284,7 +1284,7 @@ public:
   llvm::Expected<lldb_private::Address> GetEntryPointAddress();
 
   CompilerType GetRegisterType(const std::string &name,
-                               const lldb_private::RegisterFlags &flags,
+                               const lldb_private::RegisterTypeFlags &flags,
                                uint32_t byte_size);
 
   // Target Stop Hooks
