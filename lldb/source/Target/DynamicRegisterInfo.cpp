@@ -414,14 +414,19 @@ size_t DynamicRegisterInfo::SetRegisterInfo(
       m_value_reg_offset_map[local_regnum] = reg.value_reg_offset;
     }
 
-    struct RegisterInfo reg_info {
-      reg.name.AsCString(), reg.alt_name.AsCString(), reg.byte_size,
-          reg.byte_offset, reg.encoding, reg.format,
-          {reg.regnum_ehframe, reg.regnum_dwarf, reg.regnum_generic,
-           reg.regnum_remote, local_regnum},
-          // value_regs and invalidate_regs are filled by Finalize()
-          nullptr, nullptr, reg.flags_type
-    };
+    struct RegisterInfo reg_info{
+        reg.name.AsCString(),
+        reg.alt_name.AsCString(),
+        reg.byte_size,
+        reg.byte_offset,
+        reg.encoding,
+        reg.format,
+        {reg.regnum_ehframe, reg.regnum_dwarf, reg.regnum_generic,
+         reg.regnum_remote, local_regnum},
+        // value_regs and invalidate_regs are filled by Finalize()
+        nullptr,
+        nullptr,
+        reg.register_type};
 
     m_regs.push_back(reg_info);
 

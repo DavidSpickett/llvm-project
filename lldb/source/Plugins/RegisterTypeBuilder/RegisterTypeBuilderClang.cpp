@@ -37,11 +37,16 @@ RegisterTypeBuilderClang::RegisterTypeBuilderClang(Target &target)
     : m_target(target) {}
 
 CompilerType RegisterTypeBuilderClang::GetRegisterType(
-    const std::string &name, const lldb_private::RegisterTypeFlags &flags,
+    const std::string &name, const lldb_private::RegisterType &type_info,
     uint32_t byte_size) {
   lldb::TypeSystemClangSP type_system =
       ScratchTypeSystemClang::GetForTarget(m_target);
   assert(type_system);
+
+  const RegisterTypeFlags *flags =
+      llvm::dyn_cast<RegisterTypeFlags>(&type_info);
+  if (!flags)
+    return {};
 
   std::string register_type_name = "__lldb_register_fields_" + name;
   // See if we have made this type before and can reuse it.
@@ -65,7 +70,7 @@ CompilerType RegisterTypeBuilderClang::GetRegisterType(
 
     // We assume that RegisterTypeFlags has padded and sorted the fields
     // already.
-    for (const RegisterTypeFlags::Field &field : flags.GetFields()) {
+    for (const RegisterTypeFlags::Field &field : flags->GetFields()) {
       CompilerType field_type = field_uint_type;
 
       if (const RegisterTypeEnum *enum_type = field.GetEnum()) {
@@ -117,7 +122,7 @@ CompilerType RegisterTypeBuilderClang::GetRegisterType(
     type_system->SetIsPacked(fields_type);
 
     // This should be true if RegisterTypeFlags padded correctly.
-    assert(*fields_type.GetByteSize(nullptr) == flags.GetSize());
+    assert(*fields_type.GetByteSize(nullptr) == flags->GetSize());
   }
 
   return fields_type;
