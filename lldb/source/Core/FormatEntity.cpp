@@ -102,7 +102,7 @@ constexpr Definition g_frame_child_entries[] = {
     Definition("pc", EntryType::FrameRegisterPC),
     Definition("fp", EntryType::FrameRegisterFP),
     Definition("sp", EntryType::FrameRegisterSP),
-    Definition("flags", EntryType::FrameRegisterFlags),
+    Definition("flags", EntryType::FrameRegisterTypeFlags),
     Definition("no-debug", EntryType::FrameNoDebug),
     Entry::DefinitionWithChildren("reg", EntryType::FrameRegisterByName,
                                   g_string_entry),
@@ -331,7 +331,7 @@ const char *FormatEntity::Entry::TypeToCString(Type t) {
     ENUM_TO_CSTR(FrameRegisterPC);
     ENUM_TO_CSTR(FrameRegisterSP);
     ENUM_TO_CSTR(FrameRegisterFP);
-    ENUM_TO_CSTR(FrameRegisterFlags);
+    ENUM_TO_CSTR(FrameRegisterTypeFlags);
     ENUM_TO_CSTR(FrameRegisterByName);
     ENUM_TO_CSTR(FrameIsArtificial);
     ENUM_TO_CSTR(ScriptFrame);
@@ -1560,7 +1560,7 @@ bool FormatEntity::Format(const Entry &entry, Stream &s,
     }
     return false;
 
-  case Entry::Type::FrameRegisterFlags:
+  case Entry::Type::FrameRegisterTypeFlags:
     if (exe_ctx) {
       StackFrame *frame = exe_ctx->GetFramePtr();
       if (frame) {
