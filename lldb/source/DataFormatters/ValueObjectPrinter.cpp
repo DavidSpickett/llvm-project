@@ -733,7 +733,14 @@ void ValueObjectPrinter::PrintChildren(
   if (num_children) {
     bool any_children_printed = false;
 
-    for (size_t idx = 0; idx < num_children; ++idx) {
+    // TODO: horrible hack
+    std::vector<size_t> idxs;
+    for (size_t idx = 0; idx < num_children; ++idx)
+      idxs.push_back(idx);
+    if (m_options.m_reverse_children)
+      std::reverse(idxs.begin(), idxs.end());
+
+    for (auto idx : idxs) {
       if (ValueObjectSP child_sp = GenerateChild(synth_valobj, idx)) {
         if (m_options.m_child_printing_decider &&
             !m_options.m_child_printing_decider(child_sp->GetName()))
@@ -789,8 +796,17 @@ bool ValueObjectPrinter::PrintChildrenOneLiner(bool hide_names) {
     m_stream->PutChar('(');
 
     bool did_print_children = false;
-    for (uint32_t idx = 0; idx < num_children; ++idx) {
-      lldb::ValueObjectSP child_sp(synth_valobj.GetChildAtIndex(idx));
+
+    // TODO: horrible hack
+    std::vector<size_t> idxs;
+    for (size_t idx = 0; idx < num_children; ++idx)
+      idxs.push_back(idx);
+    if (m_options.m_reverse_children)
+      std::reverse(idxs.begin(), idxs.end());
+
+    auto idxs_end = idxs.end();
+    for (auto idx = idxs.begin(); idx != idxs_end; ++idx) {
+      lldb::ValueObjectSP child_sp(synth_valobj.GetChildAtIndex(*idx));
       if (child_sp)
         child_sp = child_sp->GetQualifiedRepresentationIfAvailable(
             m_options.m_use_dynamic, m_options.m_use_synthetic);
@@ -798,7 +814,7 @@ bool ValueObjectPrinter::PrintChildrenOneLiner(bool hide_names) {
         if (m_options.m_child_printing_decider &&
             !m_options.m_child_printing_decider(child_sp->GetName()))
           continue;
-        if (idx && did_print_children)
+        if ((idx != idxs.begin()) && did_print_children)
           m_stream->PutCString(", ");
         did_print_children = true;
         if (!hide_names) {

@@ -30,7 +30,8 @@ public:
 
   CompilerType GetRegisterType(const std::string &name,
                                const lldb_private::RegisterType &type_info,
-                               uint32_t byte_size) override;
+                               uint32_t byte_size,
+                               bool reverse_child_order) override;
 
 private:
   Target &m_target;

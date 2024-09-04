@@ -1285,7 +1285,7 @@ public:
 
   CompilerType GetRegisterType(const std::string &name,
                                const lldb_private::RegisterType &type_info,
-                               uint32_t byte_size);
+                               uint32_t byte_size, bool reverse_child_order);
 
   // Target Stop Hooks
   class StopHook : public UserID {

@@ -2460,10 +2460,12 @@ Target::GetScratchTypeSystemForLanguage(lldb::LanguageType language,
 CompilerType
 Target::GetRegisterType(const std::string &name,
                         const lldb_private::RegisterType &type_info,
-                        uint32_t byte_size) {
+                        uint32_t byte_size, bool reverse_child_order) {
   RegisterTypeBuilderSP provider = PluginManager::GetRegisterTypeBuilder(*this);
   assert(provider);
-  return provider->GetRegisterType(name, type_info, byte_size);
+  // TODO: could we get this from the target itself?
+  return provider->GetRegisterType(name, type_info, byte_size,
+                                   reverse_child_order);
 }
 
 std::vector<lldb::TypeSystemSP>

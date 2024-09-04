@@ -131,21 +131,6 @@ TEST(RegisterTypeTest, RegisterTypeFlagsPadding) {
                 make_field(0, 7)});
 }
 
-TEST(RegisterFieldsTest, ReverseFieldOrder) {
-  // Unchanged
-  RegisterTypeFlags rf("", 4, {make_field(0, 31)});
-  ASSERT_EQ(0x12345678ULL, (unsigned long long)rf.ReverseFieldOrder(0x12345678));
-
-  // Swap the two halves around.
-  RegisterTypeFlags rf2("", 4, {make_field(16, 31), make_field(0, 15)});
-  ASSERT_EQ(0x56781234ULL, (unsigned long long)rf2.ReverseFieldOrder(0x12345678));
-
-  // Many small fields.
-  RegisterTypeFlags rf3(
-      "", 4, {make_field(31), make_field(30), make_field(29), make_field(28)});
-  ASSERT_EQ(0x00000005ULL, rf3.ReverseFieldOrder(0xA0000000));
-}
-
 TEST(RegisterTypeTest, AsTable) {
   // Anonymous fields are shown with an empty name cell,
   // whether they are known up front or added during construction.

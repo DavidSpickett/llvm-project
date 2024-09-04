@@ -23,7 +23,8 @@ DumpValueObjectOptions::DumpValueObjectOptions()
       m_hide_root_type(false), m_hide_root_name(false), m_hide_name(false),
       m_hide_value(false), m_run_validator(false),
       m_use_type_display_name(true), m_allow_oneliner_mode(true),
-      m_hide_pointer_value(false), m_reveal_empty_aggregates(true) {}
+      m_hide_pointer_value(false), m_reveal_empty_aggregates(true),
+      m_reverse_children(false) {}
 
 DumpValueObjectOptions::DumpValueObjectOptions(ValueObject &valobj)
     : DumpValueObjectOptions() {
@@ -210,5 +211,11 @@ DumpValueObjectOptions::SetElementCount(uint32_t element_count) {
 DumpValueObjectOptions &DumpValueObjectOptions::SetPointerAsArray(
     const PointerAsArraySettings &ptr_array) {
   m_pointer_as_array = ptr_array;
+  return *this;
+}
+
+DumpValueObjectOptions &
+DumpValueObjectOptions::SetReverseChildren(bool reverse_children) {
+  m_reverse_children = reverse_children;
   return *this;
 }

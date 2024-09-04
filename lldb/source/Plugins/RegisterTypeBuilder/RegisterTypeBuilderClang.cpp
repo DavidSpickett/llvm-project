@@ -38,7 +38,7 @@ RegisterTypeBuilderClang::RegisterTypeBuilderClang(Target &target)
 
 CompilerType RegisterTypeBuilderClang::GetRegisterType(
     const std::string &name, const lldb_private::RegisterType &type_info,
-    uint32_t byte_size) {
+    uint32_t byte_size, bool reverse_child_order) {
   lldb::TypeSystemClangSP type_system =
       ScratchTypeSystemClang::GetForTarget(m_target);
   assert(type_system);
@@ -70,7 +70,11 @@ CompilerType RegisterTypeBuilderClang::GetRegisterType(
 
     // We assume that RegisterTypeFlags has padded and sorted the fields
     // already.
-    for (const RegisterTypeFlags::Field &field : flags->GetFields()) {
+    std::vector<RegisterTypeFlags::Field> fields = flags->GetFields();
+    // TODO: hack!!!!
+    if (reverse_child_order)
+      std::reverse(fields.begin(), fields.end());
+    for (const RegisterTypeFlags::Field &field : fields) {
       CompilerType field_type = field_uint_type;
 
       if (const RegisterTypeEnum *enum_type = field.GetEnum()) {

@@ -21,7 +21,8 @@ public:
   virtual CompilerType
   GetRegisterType(const std::string &name,
                   const lldb_private::RegisterType &type_info,
-                  uint32_t byte_size) = 0;
+                  // TODO: doc reverse option
+                  uint32_t byte_size, bool reverse_child_order) = 0;
 
 protected:
   RegisterTypeBuilder() = default;

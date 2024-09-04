@@ -127,6 +127,9 @@ public:
 
   DumpValueObjectOptions &SetElementCount(uint32_t element_count = 0);
 
+  // TODO: add tests for this!
+  DumpValueObjectOptions &SetReverseChildren(bool reverse_children = false);
+
   DumpValueObjectOptions &
   SetPointerAsArray(const PointerAsArraySettings &ptr_array);
 
@@ -158,6 +161,7 @@ public:
   bool m_allow_oneliner_mode : 1;
   bool m_hide_pointer_value : 1;
   bool m_reveal_empty_aggregates : 1;
+  bool m_reverse_children : 1;
 };
 
 } // namespace lldb_private

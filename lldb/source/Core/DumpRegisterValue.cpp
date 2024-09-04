@@ -25,21 +25,11 @@ template <typename T>
 static void dump_type_value(lldb_private::CompilerType &fields_type, T value,
                             lldb_private::ExecutionContextScope *exe_scope,
                             const lldb_private::RegisterType *type_info,
-                            lldb_private::Stream &strm) {
-  lldb::ByteOrder target_order = exe_scope->CalculateProcess()->GetByteOrder();
-
-  // For the bitfield types we generate, it is expected that the fields are
-  // in what is usually a big endian order. Most significant field first.
-  // This is also clang's internal ordering and the order we want to print
-  // them. On a big endian host this all matches up, for a little endian
-  // host we have to swap the order of the fields before display.
-  if (target_order == lldb::ByteOrder::eByteOrderLittle)
-    if (const lldb_private::RegisterTypeFlags *flags_type =
-            llvm::dyn_cast<lldb_private::RegisterTypeFlags>(type_info))
-      value = flags_type->ReverseFieldOrder(value);
-
+                            lldb_private::Stream &strm,
+                            bool print_children_reversed) {
   // Then we need to match the target's endian on a byte level as well.
-  if (lldb_private::endian::InlHostByteOrder() != target_order)
+  if (lldb_private::endian::InlHostByteOrder() !=
+      exe_scope->CalculateProcess()->GetByteOrder())
     value = llvm::byteswap(value);
 
   lldb_private::DataExtractor data_extractor{
@@ -53,7 +43,9 @@ static void dump_type_value(lldb_private::CompilerType &fields_type, T value,
         // Unnamed bit-fields are padding that we don't want to show.
         return varname.GetLength();
       };
-  dump_options.SetChildPrintingDecider(decider).SetHideRootType(true);
+  dump_options.SetChildPrintingDecider(decider)
+      .SetHideRootType(true)
+      .SetReverseChildren(print_children_reversed);
 
   if (llvm::Error error = vobj_sp->Dump(strm, dump_options))
     strm << "error: " << toString(std::move(error));
@@ -126,8 +118,11 @@ void lldb_private::DumpRegisterValue(const RegisterValue &reg_val, Stream &s,
       (reg_info.byte_size != 4 && reg_info.byte_size != 8))
     return;
 
-  CompilerType register_type = target_sp->GetRegisterType(
-      reg_info.name, *reg_info.register_type, reg_info.byte_size);
+  lldb::ByteOrder target_order = exe_scope->CalculateProcess()->GetByteOrder();
+  bool reverse_children = target_order == eByteOrderLittle;
+  CompilerType register_type =
+      target_sp->GetRegisterType(reg_info.name, *reg_info.register_type,
+                                 reg_info.byte_size, reverse_children);
   if (!register_type.IsValid())
     return;
 
@@ -136,10 +131,10 @@ void lldb_private::DumpRegisterValue(const RegisterValue &reg_val, Stream &s,
 
   if (reg_info.byte_size == 4) {
     dump_type_value(register_type, reg_val.GetAsUInt32(), exe_scope,
-                    reg_info.register_type, fields_stream);
+                    reg_info.register_type, fields_stream, reverse_children);
   } else {
     dump_type_value(register_type, reg_val.GetAsUInt64(), exe_scope,
-                    reg_info.register_type, fields_stream);
+                    reg_info.register_type, fields_stream, reverse_children);
   }
 
   // Registers are indented like:
