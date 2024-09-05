@@ -934,13 +934,12 @@ bool PluginManager::UnregisterPlugin(
   return GetRegisterTypeBuilderInstances().UnregisterPlugin(create_callback);
 }
 
-lldb::RegisterTypeBuilderSP
-PluginManager::GetRegisterTypeBuilder(Target &target) {
+lldb::RegisterTypeBuilderSP PluginManager::GetRegisterTypeBuilder() {
   const auto &instances = GetRegisterTypeBuilderInstances().GetInstances();
   // We assume that RegisterTypeBuilderClang is the only instance of this plugin
   // type and is always present.
   assert(instances.size());
-  return instances[0].create_callback(target);
+  return instances[0].create_callback();
 }
 
 #pragma mark ScriptInterpreter

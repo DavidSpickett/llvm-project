@@ -260,7 +260,7 @@ public:
   static bool
   UnregisterPlugin(RegisterTypeBuilderCreateInstance create_callback);
 
-  static lldb::RegisterTypeBuilderSP GetRegisterTypeBuilder(Target &target);
+  static lldb::RegisterTypeBuilderSP GetRegisterTypeBuilder();
 
   // ScriptInterpreter
   static bool RegisterPlugin(llvm::StringRef name, llvm::StringRef description,

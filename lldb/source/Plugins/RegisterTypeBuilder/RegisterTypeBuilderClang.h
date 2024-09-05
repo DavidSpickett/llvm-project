@@ -10,12 +10,26 @@
 #define LLDB_PLUGINS_REGISTERTYPEBUILDER_REGISTERTYPEBUILDERCLANG_H
 
 #include "lldb/Target/RegisterTypeBuilder.h"
-#include "lldb/Target/Target.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 
 namespace lldb_private {
+class TypeSystemClangHolder {
+  std::shared_ptr<TypeSystemClang> m_ast;
+
+public:
+  TypeSystemClangHolder()
+      : m_ast(std::make_shared<TypeSystemClang>(
+            "registers",
+            // TODO: what if aarch64 isn't built in?
+            llvm::Triple("aarch64_be-none-elf"))) {}
+  TypeSystemClang *GetAST() const { return m_ast.get(); }
+};
+
 class RegisterTypeBuilderClang : public RegisterTypeBuilder {
 public:
-  RegisterTypeBuilderClang(Target &target);
+  RegisterTypeBuilderClang()
+      : m_holder(std::make_unique<TypeSystemClangHolder>()),
+        m_ast(m_holder->GetAST()) {}
 
   static void Initialize();
   static void Terminate();
@@ -26,14 +40,15 @@ public:
   static llvm::StringRef GetPluginDescriptionStatic() {
     return "Create register types using TypeSystemClang";
   }
-  static lldb::RegisterTypeBuilderSP CreateInstance(Target &target);
+  static lldb::RegisterTypeBuilderSP CreateInstance();
 
   CompilerType GetRegisterType(const std::string &name,
                                const lldb_private::RegisterFlags &flags,
                                uint32_t byte_size) override;
 
 private:
-  Target &m_target;
+  std::unique_ptr<TypeSystemClangHolder> m_holder;
+  TypeSystemClang *m_ast = nullptr;
 };
 } // namespace lldb_private
 

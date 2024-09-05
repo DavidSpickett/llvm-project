@@ -28,40 +28,30 @@ void RegisterTypeBuilderClang::Initialize() {
 
 void RegisterTypeBuilderClang::Terminate() {}
 
-lldb::RegisterTypeBuilderSP
-RegisterTypeBuilderClang::CreateInstance(Target &target) {
-  return std::make_shared<RegisterTypeBuilderClang>(target);
+lldb::RegisterTypeBuilderSP RegisterTypeBuilderClang::CreateInstance() {
+  return std::make_shared<RegisterTypeBuilderClang>();
 }
-
-RegisterTypeBuilderClang::RegisterTypeBuilderClang(Target &target)
-    : m_target(target) {}
 
 CompilerType RegisterTypeBuilderClang::GetRegisterType(
     const std::string &name, const lldb_private::RegisterFlags &flags,
     uint32_t byte_size) {
-  lldb::TypeSystemClangSP type_system =
-      ScratchTypeSystemClang::GetForTarget(m_target);
-  assert(type_system);
-
   std::string register_type_name = "__lldb_register_fields_" + name;
   // See if we have made this type before and can reuse it.
   CompilerType fields_type =
-      type_system->GetTypeForIdentifier<clang::CXXRecordDecl>(
-          register_type_name);
+      m_ast->GetTypeForIdentifier<clang::CXXRecordDecl>(register_type_name);
 
   if (!fields_type) {
     // In most ABI, a change of field type means a change in storage unit.
     // We want it all in one unit, so we use a field type the same as the
     // register's size.
-    CompilerType field_uint_type =
-        type_system->GetBuiltinTypeForEncodingAndBitSize(lldb::eEncodingUint,
-                                                         byte_size * 8);
+    CompilerType field_uint_type = m_ast->GetBuiltinTypeForEncodingAndBitSize(
+        lldb::eEncodingUint, byte_size * 8);
 
-    fields_type = type_system->CreateRecordType(
+    fields_type = m_ast->CreateRecordType(
         nullptr, OptionalClangModuleID(), lldb::eAccessPublic,
         register_type_name, llvm::to_underlying(clang::TagTypeKind::Struct),
         lldb::eLanguageTypeC);
-    type_system->StartTagDeclarationDefinition(fields_type);
+    m_ast->StartTagDeclarationDefinition(fields_type);
 
     // We assume that RegisterFlags has padded and sorted the fields
     // already.
@@ -82,42 +72,42 @@ CompilerType RegisterTypeBuilderClang::GetRegisterType(
           // Enums can be used by mutiple fields and multiple registers, so we
           // may have built this one already.
           CompilerType field_enum_type =
-              type_system->GetTypeForIdentifier<clang::EnumDecl>(
-                  enum_type_name);
+              m_ast->GetTypeForIdentifier<clang::EnumDecl>(enum_type_name);
 
           if (field_enum_type)
             field_type = field_enum_type;
           else {
-            field_type = type_system->CreateEnumerationType(
-                enum_type_name, type_system->GetTranslationUnitDecl(),
+            field_type = m_ast->CreateEnumerationType(
+                enum_type_name, m_ast->GetTranslationUnitDecl(),
                 OptionalClangModuleID(), Declaration(), field_uint_type, false);
 
-            type_system->StartTagDeclarationDefinition(field_type);
+            m_ast->StartTagDeclarationDefinition(field_type);
 
             Declaration decl;
             for (auto enumerator : enumerators) {
-              type_system->AddEnumerationValueToEnumerationType(
+              m_ast->AddEnumerationValueToEnumerationType(
                   field_type, decl, enumerator.m_name.c_str(),
                   enumerator.m_value, byte_size * 8);
             }
 
-            type_system->CompleteTagDeclarationDefinition(field_type);
+            m_ast->CompleteTagDeclarationDefinition(field_type);
           }
         }
       }
 
-      type_system->AddFieldToRecordType(fields_type, field.GetName(),
-                                        field_type, lldb::eAccessPublic,
-                                        field.GetSizeInBits());
+      m_ast->AddFieldToRecordType(fields_type, field.GetName(), field_type,
+                                  lldb::eAccessPublic, field.GetSizeInBits());
     }
 
-    type_system->CompleteTagDeclarationDefinition(fields_type);
+    m_ast->CompleteTagDeclarationDefinition(fields_type);
     // So that the size of the type matches the size of the register.
-    type_system->SetIsPacked(fields_type);
+    m_ast->SetIsPacked(fields_type);
 
     // This should be true if RegisterFlags padded correctly.
     assert(*fields_type.GetByteSize(nullptr) == flags.GetSize());
   }
+
+  assert(fields_type.IsValid());
 
   return fields_type;
 }

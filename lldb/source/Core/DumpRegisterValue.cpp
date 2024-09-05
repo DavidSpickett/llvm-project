@@ -26,26 +26,17 @@ static void dump_type_value(lldb_private::CompilerType &fields_type, T value,
                             lldb_private::ExecutionContextScope *exe_scope,
                             const lldb_private::RegisterInfo &reg_info,
                             lldb_private::Stream &strm) {
-  lldb::ByteOrder target_order = exe_scope->CalculateProcess()->GetByteOrder();
-
-  // For the bitfield types we generate, it is expected that the fields are
-  // in what is usually a big endian order. Most significant field first.
-  // This is also clang's internal ordering and the order we want to print
-  // them. On a big endian host this all matches up, for a little endian
-  // host we have to swap the order of the fields before display.
-  if (target_order == lldb::ByteOrder::eByteOrderLittle) {
-    value = reg_info.flags_type->ReverseFieldOrder(value);
-  }
-
-  // Then we need to match the target's endian on a byte level as well.
-  if (lldb_private::endian::InlHostByteOrder() != target_order)
+  // The type system for register display is always big endian.
+  if (lldb_private::endian::InlHostByteOrder() !=
+      lldb::ByteOrder::eByteOrderBig)
     value = llvm::byteswap(value);
 
-  lldb_private::DataExtractor data_extractor{
-      &value, sizeof(T), lldb_private::endian::InlHostByteOrder(), 8};
+  lldb_private::DataExtractor data_extractor{&value, sizeof(T),
+                                             lldb::ByteOrder::eByteOrderBig, 8};
 
   lldb::ValueObjectSP vobj_sp = lldb_private::ValueObjectConstResult::Create(
-      exe_scope, fields_type, lldb_private::ConstString(), data_extractor);
+      exe_scope, fields_type, lldb_private::ConstString(),
+      data_extractor);
   lldb_private::DumpValueObjectOptions dump_options;
   lldb_private::DumpValueObjectOptions::ChildPrintingDecider decider =
       [](lldb_private::ConstString varname) {
@@ -127,6 +118,8 @@ void lldb_private::DumpRegisterValue(const RegisterValue &reg_val, Stream &s,
 
   CompilerType fields_type = target_sp->GetRegisterType(
       reg_info.name, *reg_info.flags_type, reg_info.byte_size);
+
+//  assert(fields_type.IsValid());
 
   // Use a new stream so we can remove a trailing newline later.
   StreamString fields_stream;
