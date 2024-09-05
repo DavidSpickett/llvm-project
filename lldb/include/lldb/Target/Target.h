@@ -28,6 +28,7 @@
 #include "lldb/Symbol/TypeSystem.h"
 #include "lldb/Target/ExecutionContextScope.h"
 #include "lldb/Target/PathMappingList.h"
+#include "lldb/Target/RegisterTypeBuilder.h"
 #include "lldb/Target/SectionLoadHistory.h"
 #include "lldb/Target/Statistics.h"
 #include "lldb/Target/ThreadSpec.h"
@@ -1598,6 +1599,7 @@ protected:
   /// more usefully in the Dummy target where you can't know exactly what
   /// signals you will have.
   llvm::StringMap<DummySignalValues> m_dummy_signals;
+  lldb::RegisterTypeBuilderSP m_register_type_builder = nullptr;
 
   static void ImageSearchPathsChanged(const PathMappingList &path_list,
                                       void *baton);

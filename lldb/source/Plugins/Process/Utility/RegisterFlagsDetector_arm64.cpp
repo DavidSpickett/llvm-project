@@ -123,6 +123,15 @@ Arm64RegisterFlagsDetector::DetectFPSRFields(uint64_t hwcap, uint64_t hwcap2) {
 
 Arm64RegisterFlagsDetector::Fields
 Arm64RegisterFlagsDetector::DetectCPSRFields(uint64_t hwcap, uint64_t hwcap2) {
+/*
+  std::vector<RegisterFlags::Field> cpsr_fields{
+      {"3", 24, 31},
+      {"2", 16, 23},
+      {"1", 8, 15},
+      {"0", 0, 7},
+  };
+*/
+  
   // The fields here are a combination of the Arm manual's SPSR_EL1,
   // plus a few changes where Linux has decided not to make use of them at all,
   // or at least not from userspace.

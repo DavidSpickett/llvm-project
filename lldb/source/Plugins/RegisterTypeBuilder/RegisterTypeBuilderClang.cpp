@@ -26,7 +26,9 @@ void RegisterTypeBuilderClang::Initialize() {
   });
 }
 
-void RegisterTypeBuilderClang::Terminate() {}
+void RegisterTypeBuilderClang::Terminate() {
+  printf("terminate!\n");
+}
 
 lldb::RegisterTypeBuilderSP RegisterTypeBuilderClang::CreateInstance() {
   return std::make_shared<RegisterTypeBuilderClang>();
