@@ -27,12 +27,12 @@ static void dump_type_value(lldb_private::CompilerType &fields_type, T value,
                             const lldb_private::RegisterInfo &reg_info,
                             lldb_private::Stream &strm) {
   
-  T new_value = 0;
-  for (unsigned bit = 0; bit < sizeof(T)*8; ++bit) {
-    T bit_value = (value >> bit) & (T)1;
-    new_value |= bit_value << (sizeof(T)*8 - bit - 1);
-  }
-  value = new_value;
+  //T new_value = 0;
+  //for (unsigned bit = 0; bit < sizeof(T)*8; ++bit) {
+  //  T bit_value = (value >> bit) & (T)1;
+  //  new_value |= bit_value << (sizeof(T)*8 - bit - 1);
+  //}
+  //value = new_value;
 
   // The type system for register display is always big endian.
   //if (lldb_private::endian::InlHostByteOrder() !=

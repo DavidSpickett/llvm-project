@@ -123,55 +123,53 @@ Arm64RegisterFlagsDetector::DetectFPSRFields(uint64_t hwcap, uint64_t hwcap2) {
 
 Arm64RegisterFlagsDetector::Fields
 Arm64RegisterFlagsDetector::DetectCPSRFields(uint64_t hwcap, uint64_t hwcap2) {
-/*
   std::vector<RegisterFlags::Field> cpsr_fields{
       {"3", 24, 31},
       {"2", 16, 23},
       {"1", 8, 15},
       {"0", 0, 7},
   };
-*/
   
-  // The fields here are a combination of the Arm manual's SPSR_EL1,
-  // plus a few changes where Linux has decided not to make use of them at all,
-  // or at least not from userspace.
-
-  // Status bits that are always present.
-  std::vector<RegisterFlags::Field> cpsr_fields{
-      {"N", 31}, {"Z", 30}, {"C", 29}, {"V", 28},
-      // Bits 27-26 reserved.
-  };
-
-  if (hwcap2 & HWCAP2_MTE)
-    cpsr_fields.push_back({"TCO", 25});
-  if (hwcap & HWCAP_DIT)
-    cpsr_fields.push_back({"DIT", 24});
-
-  // UAO and PAN are bits 23 and 22 and have no meaning for userspace so
-  // are treated as reserved by the kernels.
-
-  cpsr_fields.push_back({"SS", 21});
-  cpsr_fields.push_back({"IL", 20});
-  // Bits 19-14 reserved.
-
-  // Bit 13, ALLINT, requires FEAT_NMI that isn't relevant to userspace, and we
-  // can't detect either, don't show this field.
-  if (hwcap & HWCAP_SSBS)
-    cpsr_fields.push_back({"SSBS", 12});
-  if (hwcap2 & HWCAP2_BTI)
-    cpsr_fields.push_back({"BTYPE", 10, 11});
-
-  cpsr_fields.push_back({"D", 9});
-  cpsr_fields.push_back({"A", 8});
-  cpsr_fields.push_back({"I", 7});
-  cpsr_fields.push_back({"F", 6});
-  // Bit 5 reserved
-  // Called "M" in the ARMARM.
-  cpsr_fields.push_back({"nRW", 4});
-  // This is a 4 bit field M[3:0] in the ARMARM, we split it into parts.
-  cpsr_fields.push_back({"EL", 2, 3});
-  // Bit 1 is unused and expected to be 0.
-  cpsr_fields.push_back({"SP", 0});
+//  // The fields here are a combination of the Arm manual's SPSR_EL1,
+//  // plus a few changes where Linux has decided not to make use of them at all,
+//  // or at least not from userspace.
+//
+//  // Status bits that are always present.
+//  std::vector<RegisterFlags::Field> cpsr_fields{
+//      {"N", 31}, {"Z", 30}, {"C", 29}, {"V", 28},
+//      // Bits 27-26 reserved.
+//  };
+//
+//  if (hwcap2 & HWCAP2_MTE)
+//    cpsr_fields.push_back({"TCO", 25});
+//  if (hwcap & HWCAP_DIT)
+//    cpsr_fields.push_back({"DIT", 24});
+//
+//  // UAO and PAN are bits 23 and 22 and have no meaning for userspace so
+//  // are treated as reserved by the kernels.
+//
+//  cpsr_fields.push_back({"SS", 21});
+//  cpsr_fields.push_back({"IL", 20});
+//  // Bits 19-14 reserved.
+//
+//  // Bit 13, ALLINT, requires FEAT_NMI that isn't relevant to userspace, and we
+//  // can't detect either, don't show this field.
+//  if (hwcap & HWCAP_SSBS)
+//    cpsr_fields.push_back({"SSBS", 12});
+//  if (hwcap2 & HWCAP2_BTI)
+//    cpsr_fields.push_back({"BTYPE", 10, 11});
+//
+//  cpsr_fields.push_back({"D", 9});
+//  cpsr_fields.push_back({"A", 8});
+//  cpsr_fields.push_back({"I", 7});
+//  cpsr_fields.push_back({"F", 6});
+//  // Bit 5 reserved
+//  // Called "M" in the ARMARM.
+//  cpsr_fields.push_back({"nRW", 4});
+//  // This is a 4 bit field M[3:0] in the ARMARM, we split it into parts.
+//  cpsr_fields.push_back({"EL", 2, 3});
+//  // Bit 1 is unused and expected to be 0.
+//  cpsr_fields.push_back({"SP", 0});
 
   return cpsr_fields;
 }
