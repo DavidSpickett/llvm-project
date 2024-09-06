@@ -16,8 +16,8 @@
 
 #include "Plugins/Process/FreeBSD/NativeProcessFreeBSD.h"
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
-#include "Plugins/Process/Utility/RegisterFlagsDetector_arm64.h"
 #include "Plugins/Process/Utility/RegisterInfoPOSIX_arm64.h"
+#include "Plugins/Process/Utility/RegisterTypeDetector_arm64.h"
 
 // clang-format off
 #include <sys/param.h>
@@ -34,7 +34,7 @@ using namespace lldb_private::process_freebsd;
 // competing with the other, and subsequent instances from having to detect the
 // fields all over again.
 static std::mutex g_register_flags_detector_mutex;
-static Arm64RegisterFlagsDetector g_register_flags_detector;
+static Arm64RegisterTypeDetector g_register_flags_detector;
 
 NativeRegisterContextFreeBSD *
 NativeRegisterContextFreeBSD::CreateHostNativeRegisterContextFreeBSD(
@@ -42,7 +42,7 @@ NativeRegisterContextFreeBSD::CreateHostNativeRegisterContextFreeBSD(
   std::lock_guard<std::mutex> lock(g_register_flags_detector_mutex);
   if (!g_register_flags_detector.HasDetected()) {
     NativeProcessFreeBSD &process = native_thread.GetProcess();
-    g_register_flags_detector.DetectFields(
+    g_register_flags_detector.DetectTypes(
         process.GetAuxValue(AuxVector::AUXV_FREEBSD_AT_HWCAP).value_or(0),
         process.GetAuxValue(AuxVector::AUXV_AT_HWCAP2).value_or(0));
   }

@@ -10,7 +10,7 @@
 #include "Plugins/Process/Utility/RegisterInfoPOSIX_arm64.h"
 
 #include "Plugins/Process/Utility/AuxVector.h"
-#include "Plugins/Process/Utility/RegisterFlagsDetector_arm64.h"
+#include "Plugins/Process/Utility/RegisterTypeDetector_arm64.h"
 #include "Plugins/Process/elf-core/ProcessElfCore.h"
 #include "Plugins/Process/elf-core/RegisterUtilities.h"
 #include "lldb/Target/Thread.h"
@@ -88,8 +88,8 @@ RegisterContextCorePOSIX_arm64::RegisterContextCorePOSIX_arm64(
     std::optional<uint64_t> auxv_at_hwcap2 =
         aux_vec.GetAuxValue(AuxVector::AUXV_AT_HWCAP2);
 
-    m_register_flags_detector.DetectFields(auxv_at_hwcap.value_or(0),
-                                           auxv_at_hwcap2.value_or(0));
+    m_register_flags_detector.DetectTypes(auxv_at_hwcap.value_or(0),
+                                          auxv_at_hwcap2.value_or(0));
     m_register_flags_detector.UpdateRegisterInfo(GetRegisterInfo(),
                                                  GetRegisterCount());
   }
