@@ -77,8 +77,10 @@ public:
                     RegisterContext &reg_ctx, const RegisterInfo &reg_info,
                     bool print_flags) {
     RegisterValue reg_value;
-    if (!reg_ctx.ReadRegister(&reg_info, reg_value))
+    if (!reg_ctx.ReadRegister(&reg_info, reg_value)) {
+      printf("failed to read register %s\n", reg_info.name);
       return false;
+    }
 
     strm.Indent();
 

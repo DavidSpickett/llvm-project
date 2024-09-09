@@ -21,30 +21,10 @@
 
 using namespace lldb;
 
-template <typename T>
-static void dump_type_value(lldb_private::CompilerType &fields_type, T value,
+static void dump_type_value(lldb_private::CompilerType &fields_type, const lldb_private::DataExtractor &data_extractor,
                             lldb_private::ExecutionContextScope *exe_scope,
                             const lldb_private::RegisterType *type_info,
                             lldb_private::Stream &strm) {
-  lldb::ByteOrder target_order = exe_scope->CalculateProcess()->GetByteOrder();
-
-  // For the bitfield types we generate, it is expected that the fields are
-  // in what is usually a big endian order. Most significant field first.
-  // This is also clang's internal ordering and the order we want to print
-  // them. On a big endian host this all matches up, for a little endian
-  // host we have to swap the order of the fields before display.
-  if (target_order == lldb::ByteOrder::eByteOrderLittle)
-    if (const lldb_private::RegisterTypeFlags *flags_type =
-            llvm::dyn_cast<lldb_private::RegisterTypeFlags>(type_info))
-      value = flags_type->ReverseFieldOrder(value);
-
-  // Then we need to match the target's endian on a byte level as well.
-  if (lldb_private::endian::InlHostByteOrder() != target_order)
-    value = llvm::byteswap(value);
-
-  lldb_private::DataExtractor data_extractor{
-      &value, sizeof(T), lldb_private::endian::InlHostByteOrder(), 8};
-
   lldb::ValueObjectSP vobj_sp = lldb_private::ValueObjectConstResult::Create(
       exe_scope, fields_type, lldb_private::ConstString(), data_extractor);
   lldb_private::DumpValueObjectOptions dump_options;
@@ -122,8 +102,7 @@ void lldb_private::DumpRegisterValue(const RegisterValue &reg_val, Stream &s,
                     0,                    // item_bit_offset
                     exe_scope);
 
-  if (!print_flags || !reg_info.register_type || !exe_scope || !target_sp ||
-      (reg_info.byte_size != 4 && reg_info.byte_size != 8))
+  if (!print_flags || !reg_info.register_type || !exe_scope || !target_sp)
     return;
 
   CompilerType register_type =
@@ -134,13 +113,8 @@ void lldb_private::DumpRegisterValue(const RegisterValue &reg_val, Stream &s,
   // Use a new stream so we can remove a trailing newline later.
   StreamString fields_stream;
 
-  if (reg_info.byte_size == 4) {
-    dump_type_value(register_type, reg_val.GetAsUInt32(), exe_scope,
-                    reg_info.register_type, fields_stream);
-  } else {
-    dump_type_value(register_type, reg_val.GetAsUInt64(), exe_scope,
-                    reg_info.register_type, fields_stream);
-  }
+  dump_type_value(register_type, data, exe_scope,
+                  reg_info.register_type, fields_stream);
 
   // Registers are indented like:
   // (lldb) register read foo
