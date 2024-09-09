@@ -9,6 +9,7 @@
 #include "RegisterTypeDetector_arm64.h"
 #include "lldb/Target/RegisterTypeFlags.h"
 #include "lldb/Target/RegisterTypeUnion.h"
+#include "lldb/Target/RegisterTypeVector.h"
 #include "lldb/lldb-private-types.h"
 
 // This file is built on all systems because it is used by native processes and
@@ -190,9 +191,17 @@ const RegisterType *Arm64RegisterTypeDetector::DetectCPSRType(uint64_t hwcap,
 
   cpsr_flags_reversed.SetFields(raw_bits);
 
-  static RegisterTypeUnion cpsr_union(
-      "cpsr_union",
-      {{"normal", &cpsr_flags}, {"raw_bits", &cpsr_flags_reversed}});
+  static RegisterTypeVector cpsr_vec8("cpsr_vec8", "uint8", 4);
+  static RegisterTypeVector cpsr_vec16("cpsr_vec16", "uint16", 2);
+  static RegisterTypeVector cpsr_vec32("cpsr_vec32", "uint32", 1);
+  static RegisterTypeUnion cpsr_vec_union(
+      "cpsr_vec_union",
+      {{"8", &cpsr_vec8}, {"16", &cpsr_vec16}, {"32", &cpsr_vec32}});
+
+  static RegisterTypeUnion cpsr_union("cpsr_union",
+                                      {{"normal", &cpsr_flags},
+                                       {"raw_bits", &cpsr_flags_reversed},
+                                       {"vectors", &cpsr_vec_union}});
 
   return &cpsr_union;
 }
