@@ -79,8 +79,10 @@ uint32_t NativeRegisterContextDBReg_arm64::MakeBreakControlValue(size_t size) {
 }
 
 uint32_t
-NativeRegisterContextDBReg_arm64::MakeWatchControlValue(size_t size,
+NativeRegisterContextDBReg_arm64::MakeWatchControlValue(lldb::addr_t addr, size_t size,
                                                         uint32_t watch_flags) {
+  (void)addr;
+
   // PAC (bits 2:1): 0b10
   const uint32_t pac_bits = 2 << 1;
 
