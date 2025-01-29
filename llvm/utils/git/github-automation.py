@@ -365,6 +365,7 @@ class CheckPRsNeedMerge:
         # Tell the PR author to prepare the PR for merge.
         pull.as_issue().create_comment(
             f"""\
+{self.PROMPT_AUTHOR_COMMENT}
 {self.at_users([pull.user])} please ensure that this PR is ready to be merged. Make sure that:
 * The PR title and description describe the final changes. These will be used as the title and message of the final squashed commit. The titles and messages of commits in the PR will **not** be used.
 * You have set a valid [email address](https://llvm.org/docs/DeveloperPolicy.html#github-email-address) in your GitHub account. This will be associated with this contribution.
