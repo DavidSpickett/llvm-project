@@ -417,8 +417,6 @@ When the PR is ready to be merged please reply with a comment that is exactly "{
             found_prompt_author_comment = False
             found_author_comment = False
             for comment in pull.get_issue_comments():
-                print("comments:")
-                print(comment.body())
                 # If the PR author wrote the magic response comment.
                 if (
                     comment.user.login == pull.user.login
