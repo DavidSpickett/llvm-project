@@ -433,6 +433,7 @@ When the PR is ready to be merged please reply with a comment that is exactly "{
 
             if found_author_comment:
                 self.prompt_approvers(pull, approvers)
+                pull.as_issue().remove_from_labels(NO_COMMIT_ACCESS_LABEL)
             elif not found_prompt_author_comment:
                 self.prompt_author(pull)
             elif found_prompt_author_comment:
