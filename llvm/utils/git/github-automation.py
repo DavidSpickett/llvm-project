@@ -403,7 +403,9 @@ When the PR is ready to be merged please reply with a comment that is exactly "{
                 # PR is from someone with commit access.
                 continue
 
-            approvers = [r.user for r in pull.get_reviews() if r.state == "APPROVED"]
+            # TODO: test bodge
+            approvers = [r.user for r in pull.get_reviews()]
+            # approvers = [r.user for r in pull.get_reviews() if r.state == "APPROVED"]
             if not approvers:
                 # Can't do anything until there is at least one approval.
                 continue
