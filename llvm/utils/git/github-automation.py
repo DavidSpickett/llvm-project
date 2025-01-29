@@ -420,13 +420,13 @@ When the PR is ready to be merged please reply with a comment that is exactly "{
                 # If the PR author wrote the magic response comment.
                 if (
                     comment.user.login == pull.user.login
-                    and self.PR_READY_COMMENT in comment.body()
+                    and self.PR_READY_COMMENT in comment.body
                 ):
                     found_author_comment = True
                     # Either they responded to our prompting, or knew ahead of time
                     # what to do, either is fine.
                     break
-                elif self.PROMPT_AUTHOR_COMMENT_TAG in comment.body():
+                elif self.PROMPT_AUTHOR_COMMENT_TAG in comment.body:
                     found_prompt_author_comment = True
 
             if found_author_comment:
