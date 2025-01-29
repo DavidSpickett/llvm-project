@@ -375,10 +375,9 @@ class CheckPRsNeedMerge:
 
     def prompt_approvers(self, pull, approvers) -> bool:
         # If we get here then the PR is approved, but we may be waiting on the
-        # author to do final updates. This comment will usually be one of the last,
-        # if not the last.
+        # author to do final updates. This comment will usually be one of the last.
         for comment in pull.get_comments(direction="desc"):
-            if self.PR_READY_COMMENT in comment.body():
+            if comment.user.login == pull.user.login and self.PR_READY_COMMENT in comment.body():
                 break
         else:
             # Still waiting for author.
