@@ -296,27 +296,29 @@ CheckCommitAccess and CheckPRsNeedMerge work together to implement a flow that
 notifies approvers of PRs from authors without commit access, when an approved
 PR is ready to merge. The steps are as follows:
 
-* New PRs are labelled to show that the author has no commit access (done by
-  CheckCommitAccess).
-* On a timer, CheckPRsNeedMerge sweeps all open PRs looking for any with that
-  label.
-* If a PR with that label has approvals, it adds a comment telling the PR author
-  to ready the PR for merge. It also adds a label to show that we're waiting on
-  them.
-* Subsequent sweeps look to see whether the author has replied with a special
-  comment to show they are ready for the merge to happen.
-* Once we find this comment, we prompt all approvers of the PR to merge it by
-  whatever means possible to them. Both labels are removed.
-* The final result is a closed PR with no extra labels.
+* New PRs from users without commit access are labelled to indicate this, as
+  they are opened.
+* Periodically, PRs with this tag are checked. PRs with this label are inspected
+  and if they have approvals, the author is prompted to make the PR ready for
+  merging.
+* The author then replies with a specific comment.
+* This comment is picked up by the next workflow run. We then add a comment prompting
+  the approvers of the PR to merge it, and remove the label we added earlier.
 
-Doing this prompt and response increases complexity but it allows the author
-a real chance to clean up the PR, and means that once approvers recieve that
-notification, all they have to do is click the merge button.
+We do allow for the author to post the magic comment earlier, and will skip prompting
+them if they have done that.
+
+We do this call and response so that:
+* Authors do not have to rush to update the PR.
+* The subsequent comment to approvers causes a notification to them which they
+  can immediately act upon.
 
 If we were able to write to the repo in response to a pull_request_review event,
-we could remove all this complexity. See:
+we could run the second part in response to the review submitted event. See:
 https://github.com/orgs/community/discussions/26651
 https://github.com/orgs/community/discussions/55940
+
+We cannot, so the second part runs on a timer instead.
 """
 
 def user_can_merge(user: str, repo: str):
@@ -349,7 +351,8 @@ class CheckCommitAccess:
 
 
 class CheckPRsNeedMerge:
-    PR_READY_COMMENT = "PR updated"
+    PR_READY_COMMENT = "! This PR is ready to merge !"
+    PROMPT_AUTHOR_COMMENT = "<!--NEEDS MERGE PROMPT AUTHOR-->\n"
 
     def __init__(self, token: str, repo: str):
         self.repo = github.Github(token).get_repo(repo)
@@ -360,31 +363,18 @@ class CheckPRsNeedMerge:
 
     def prompt_author(self, pull) -> bool:
         # Tell the PR author to prepare the PR for merge.
-        comment = dedent(
+        pull.as_issue().create_comment(
             f"""\
-            {self.at_users([pull.user.login])} please ensure that this PR is ready to be merged. Make sure that:
-            * The PR title and description describe the final changes. These will be used as the title and message of the final squashed commit. The titles and messages of commits in the PR will **not** be used.
-            * You have set a valid [email address](https://llvm.org/docs/DeveloperPolicy.html#github-email-address) in your GitHub account. This will be associated with this contribution.
+{self.at_users([pull.user.login])} please ensure that this PR is ready to be merged. Make sure that:
+* The PR title and description describe the final changes. These will be used as the title and message of the final squashed commit. The titles and messages of commits in the PR will **not** be used.
+* You have set a valid [email address](https://llvm.org/docs/DeveloperPolicy.html#github-email-address) in your GitHub account. This will be associated with this contribution.
 
-            When the PR is ready to be merged please reply with a comment that is exactly "{self.PR_READY_COMMENT}"."""
+When the PR is ready to be merged please reply with a comment that is exactly "{self.PR_READY_COMMENT}"."""
         )
-        pull.as_issue().create_comment(comment)
-        pull.as_issue().add_to_labels(MERGE_WAITING_ON_AUTHOR_LABEL)
 
         return True
 
     def prompt_approvers(self, pull, approvers) -> bool:
-        # If we get here then the PR is approved, but we may be waiting on the
-        # author to do final updates. This comment will usually be one of the last.
-        for comment in pull.get_comments(direction="desc"):
-            if comment.user.login == pull.user.login and self.PR_READY_COMMENT in comment.body():
-                break
-        else:
-            # Still waiting for author.
-            return True
-
-        # The author is ok with this merging, ask approvers to do so.
-
         # Even approvers may not have commit access.
         can_merge = [a for a in approvers if user_can_merge(a, self.repo)]
 
@@ -393,45 +383,12 @@ class CheckPRsNeedMerge:
             to_approvers = f"{self.at_users(approvers)}, please find someone who can merge this PR on behalf of {at_users([pull.user])}."
         elif len(can_merge) == 1:
             # Ask this specific approver to merge.
-            to_approvers = f"{self.at_users(can_merge)}, please merge this PR on behalf of {at_users([pull.user])}."
+            to_approvers = f"{self.at_users(can_merge)}, please merge this PR on behalf of {self.at_users([pull.user])}."
         else:
             # Ask all who can merge to do so.
-            to_approvers = f"{self.at_users(can_merge)}, one of you should merge this PR on behalf of {at_users([pull.user])}."
+            to_approvers = f"{self.at_users(can_merge)}, one of you should merge this PR on behalf of {self.at_users([pull.user])}."
 
-        pull.as_issue().remove_from_labels(NO_COMMIT_ACCESS_LABEL)
-        pull.as_issue().remove_from_labels(MERGE_WAITING_ON_AUTHOR_LABEL)
-
-        return True
-
-    def run(self) -> bool:
-        # "Either open, closed, or all to filter by state." - no "approved"
-        # unfortunately.
-        for pull in self.repo.get_pulls(state="open"):
-            found_no_commit_access_label = False
-            found_merge_waiting_on_author_label = False
-
-            for label in pull.as_issue().get_labels():
-                if label.name == NO_COMMIT_ACCESS_LABEL:
-                    found_no_commit_access_label = True
-                elif label.name == MERGE_WAITING_ON_AUTHOR_LABEL:
-                    found_merge_waiting_on_author_label = True
-
-            if not found_no_commit_access_label:
-                # This PR is from someone with commit-access, ignore it.
-                continue
-
-            approvers = [r.user for r in pull.get_reviews() if r.state == "APPROVED"]
-            if not approvers:
-                continue
-
-            if found_no_commit_access_label and found_merge_waiting_on_author_label:
-                self.prompt_approvers(pull, approvers)
-            elif found_no_commit_access_label:
-                self.prompt_author(pull)
-            elif found_merge_waiting_on_author_label:
-                # If we find this label alone, something has gone wrong.
-                # TODO: log the PR links so we can clean these up
-                continue
+        pull.as_issue().create_comment(to_approvers)
 
         return True
 
@@ -439,53 +396,46 @@ class CheckPRsNeedMerge:
         # "Either open, closed, or all to filter by state." - no "approved"
         # unfortunately.
         for pull in self.repo.get_pulls(state="open"):
-            # If a PR is opened by someone without commit access, this label was
-            # added. If it's not there, they have the ability to merge their own PR.
-            found_label = None
             for label in pull.as_issue().get_labels():
                 if label.name == NO_COMMIT_ACCESS_LABEL:
-                    found_label = label
-
-            if found_label is None:
-                continue
-
-            approvers = [r.user for r in pull.get_reviews() if r.state == "APPROVED"]
-            if not approvers:
-                # Not approved yet, leave the label in place so this workflow will check
-                # again next time.
-                continue
-
-            def at_users(users):
-                return ", ".join([f"@{user.login}" for user in users])
-
-            # Even approvers may not have commit access.
-            can_merge = [a for a in approvers if user_can_merge(a, self.repo)]
-
-            # Markdown formatting is used here, with long lines unbroken so that they
-            # wordrwap correctly on GitHub.
-
-            if not can_merge:
-                # If no one can merge, find someone who can.
-                to_approvers = f"{at_users(approvers)}, when the above steps have been done, find someone who can merge this PR on behalf of {at_users([pull.user])}."
-            elif len(can_merge) == 1:
-                # Ask this specific approver to merge.
-                to_approvers = f"{at_users(can_merge)}, when the above steps have been done, please merge this PR on behalf of {at_users([pull.user])}."
+                    break
             else:
-                # Ask all who can merge to do so.
-                to_approvers = f"{at_users(can_merge)}, when the above steps have been done, one of you should merge this PR on behalf of {at_users([pull.user])}."
+                # PR is from someone with commit access.
+                continue
 
-            comment = dedent(
-                f"""\
-                @{pull.user.login} please ensure that this PR is ready to be merged. Make sure that:
-                * The PR title and description describe the final changes. These will be used as the title and message of the final squashed commit. The titles and messages of commits in the PR will **not** be used.
-                * You have set a valid [email address](https://llvm.org/docs/DeveloperPolicy.html#github-email-address) in your GitHub account. This will be associated with this contribution.
+            approvers = [r.user for r in pull.get_reviews() if r.state == "APPROVED"]
+            if not approvers:
+                # Can't do anything until there is at least one approval.
+                continue
 
-                {to_approvers}"""
-            )
-            pull.as_issue().create_comment(comment)
+            # Either we have not prompted the author, or we have, and are waiting
+            # for their response. Look for both scenarios as we iterate the comments
+            # once.
+            found_prompt_author_comment = False
+            found_author_comment = False
+            for comment in pull.get_comments(direction="desc"):
+                if (
+                    comment.user.login == pull.user.login
+                    and self.PR_READY_COMMENT in comment.body()
+                ):
+                    found_author_comment = True
+                    # Either they responded to our prompting, or knew ahead of time
+                    # what to do, either is fine.
+                    break
+                elif self.PROMPT_AUTHOR_COMMENT in comment.body():
+                    found_prompt_author_comment = True
+                    # On the assumption that if there is a bot comment, it will be earlier
+                    # than the authors. If the author posts the magic comment before
+                    # the bot prompts them, we won't get here anyway.
+                    break
 
-            # Remove the label so that we will not look at this PR again next run.
-            pull.as_issue().remove_from_labels(found_label)
+            if found_author_comment:
+                self.prompt_approvers(pull, approvers)
+            elif not found_prompt_author_comment:
+                self.prompt_author(pull)
+            elif found_prompt_author_comment:
+                # Waiting for a response from the author.
+                pass
 
         return True
 
