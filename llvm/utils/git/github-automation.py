@@ -352,7 +352,7 @@ class CheckCommitAccess:
 
 class CheckPRsNeedMerge:
     PR_READY_COMMENT = "! This PR is ready to merge !"
-    PROMPT_AUTHOR_COMMENT = "<!--NEEDS MERGE PROMPT AUTHOR-->\n"
+    PROMPT_AUTHOR_COMMENT_TAG = "<!--NEEDS MERGE PROMPT AUTHOR-->\n"
 
     def __init__(self, token: str, repo: str):
         self.repo = github.Github(token).get_repo(repo)
@@ -365,7 +365,7 @@ class CheckPRsNeedMerge:
         # Tell the PR author to prepare the PR for merge.
         pull.as_issue().create_comment(
             f"""\
-{self.PROMPT_AUTHOR_COMMENT}
+{self.PROMPT_AUTHOR_COMMENT_TAG}
 {self.at_users([pull.user])} please ensure that this PR is ready to be merged. Make sure that:
 * The PR title and description describe the final changes. These will be used as the title and message of the final squashed commit. The titles and messages of commits in the PR will **not** be used.
 * You have set a valid [email address](https://llvm.org/docs/DeveloperPolicy.html#github-email-address) in your GitHub account. This will be associated with this contribution.
@@ -417,6 +417,7 @@ When the PR is ready to be merged please reply with a comment that is exactly "{
             found_prompt_author_comment = False
             found_author_comment = False
             for comment in pull.get_comments(direction="desc"):
+                print(comment.body())
                 if (
                     comment.user.login == pull.user.login
                     and self.PR_READY_COMMENT in comment.body()
@@ -425,7 +426,7 @@ When the PR is ready to be merged please reply with a comment that is exactly "{
                     # Either they responded to our prompting, or knew ahead of time
                     # what to do, either is fine.
                     break
-                elif self.PROMPT_AUTHOR_COMMENT in comment.body():
+                elif self.PROMPT_AUTHOR_COMMENT_TAG in comment.body():
                     found_prompt_author_comment = True
                     # On the assumption that if there is a bot comment, it will be earlier
                     # than the authors. If the author posts the magic comment before
