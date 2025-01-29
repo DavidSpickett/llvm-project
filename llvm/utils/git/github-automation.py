@@ -416,9 +416,10 @@ When the PR is ready to be merged please reply with a comment that is exactly "{
             # once.
             found_prompt_author_comment = False
             found_author_comment = False
-            for comment in pull.get_comments(direction="desc"):
+            for comment in pull.get_issue_comments():
                 print("comments:")
                 print(comment.body())
+                # If the PR author wrote the magic response comment.
                 if (
                     comment.user.login == pull.user.login
                     and self.PR_READY_COMMENT in comment.body()
@@ -429,10 +430,6 @@ When the PR is ready to be merged please reply with a comment that is exactly "{
                     break
                 elif self.PROMPT_AUTHOR_COMMENT_TAG in comment.body():
                     found_prompt_author_comment = True
-                    # On the assumption that if there is a bot comment, it will be earlier
-                    # than the authors. If the author posts the magic comment before
-                    # the bot prompts them, we won't get here anyway.
-                    break
 
             if found_author_comment:
                 self.prompt_approvers(pull, approvers)
