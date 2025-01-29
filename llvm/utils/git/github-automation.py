@@ -416,7 +416,7 @@ When the PR is ready to be merged please reply with a comment that is exactly "{
             # once.
             found_prompt_author_comment = False
             found_author_comment = False
-            for comment in pull.as_issue().get_comments(direction="desc"):
+            for comment in pull.get_comments(direction="desc"):
                 print("comments:")
                 print(comment.body())
                 if (
