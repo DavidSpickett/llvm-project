@@ -4,6 +4,7 @@ permissions:
   contents: read
 
 on:
+  workflow_dispatch:
   schedule:
     # * is a special character in YAML so you have to quote this string
     # Run once an hour
@@ -16,7 +17,7 @@ jobs:
       # May change labels and add a comment.
       pull-requests: write
     if: >-
-      (github.repository == 'llvm/llvm-project')
+      (github.repository == 'DavidSpickett/llvm-project')
     steps:
       - name: Checkout Automation Script
         uses: actions/checkout@v4
