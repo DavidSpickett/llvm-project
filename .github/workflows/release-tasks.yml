@@ -29,4 +29,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          ./llvm/utils/release/./github-upload-release.py --token "$GITHUB_TOKEN" --release ${{ needs.validate-tag.outputs.release-version }} uncomment_download_links
+          ./llvm/utils/release/./github-upload-release.py --token "$GITHUB_TOKEN" --release "vX.Y.Z" uncomment_download_links
