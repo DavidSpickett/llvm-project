@@ -153,7 +153,7 @@ parser.add_argument("--files", nargs="+", type=str)
 args = parser.parse_args()
 
 gh = github.Github(args.token)
-llvm_org = gh.get_organization("DavidSpickett")
+llvm_org = gh.get_user("DavidSpickett")
 llvm_repo = llvm_org.get_repo("llvm-project")
 
 if args.user:
