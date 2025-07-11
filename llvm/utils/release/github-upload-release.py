@@ -113,7 +113,7 @@ def upload_files(repo, release, files):
 
 
 def uncomment_download_links(repo, release):
-    release = repo.get_release("llvmorg-{}".format(release))
+    release = repo.get_release("{}".format(release))
 
     new_message = []
     to_remove = [
