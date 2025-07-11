@@ -115,8 +115,6 @@ def upload_files(repo, release, files):
 def uncomment_download_links(repo, release):
     release = repo.get_release("{}".format(release))
 
-    print(dir(release))
-
     new_message = []
     to_remove = [
         "DOWNLOAD_LINKS_BEGIN",
@@ -131,7 +129,7 @@ def uncomment_download_links(repo, release):
             new_message.append(line)
 
     release.update_release(
-        name=release.name,
+        name=release.title,
         message="\n".join(new_message),
         draft=release.draft,
         prerelease=release.prerelease,
