@@ -121,7 +121,7 @@ def uncomment_download_links(repo, release):
         "DOWNLOAD_LINKS_END",
         "DOWNLOAD_LINKS_PLACEHOLDER",
     ]
-    for line in release.message.splitlines():
+    for line in release.body.splitlines():
         for comment in to_remove:
             if comment in line:
                 break
