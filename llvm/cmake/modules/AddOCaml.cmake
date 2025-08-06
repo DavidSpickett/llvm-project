@@ -40,7 +40,7 @@ function(add_ocaml_library name)
   set(ocaml_outputs "${bin}/${name}.cma")
   if( ARG_C )
     list(APPEND ocaml_outputs
-         "${bin}/lib${name}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+         "${bin}/${CMAKE_INSTALL_LIBDIR}${name}${CMAKE_STATIC_LIBRARY_SUFFIX}")
     if ( BUILD_SHARED_LIBS )
       list(APPEND ocaml_outputs
            "${bin}/dll${name}${CMAKE_SHARED_LIBRARY_SUFFIX}")
@@ -147,9 +147,9 @@ function(add_ocaml_library name)
   endforeach()
 
   if( APPLE )
-    set(ocaml_rpath "@executable_path/../../../lib${LLVM_LIBDIR_SUFFIX}")
+    set(ocaml_rpath "@executable_path/../../../${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}")
   elseif( UNIX )
-    set(ocaml_rpath "\\$ORIGIN/../../../lib${LLVM_LIBDIR_SUFFIX}")
+    set(ocaml_rpath "\\$ORIGIN/../../../${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}")
   endif()
   list(APPEND ocaml_flags "-ldopt" "-Wl,-rpath,${ocaml_rpath}")
 

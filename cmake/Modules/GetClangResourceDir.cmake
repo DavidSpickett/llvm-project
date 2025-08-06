@@ -16,7 +16,7 @@ function(get_clang_resource_dir out_var)
     if (NOT CLANG_VERSION_MAJOR)
       string(REGEX MATCH "^[0-9]+" CLANG_VERSION_MAJOR ${PACKAGE_VERSION})
     endif()
-    set(ret_dir lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION_MAJOR})
+    set(ret_dir ${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION_MAJOR})
   endif()
 
   if(ARG_PREFIX)

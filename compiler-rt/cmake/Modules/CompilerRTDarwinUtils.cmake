@@ -343,15 +343,15 @@ function(darwin_lipo_libs name)
     "LIPO_FLAGS;DEPENDS"
     ${ARGN})
   if(LIB_DEPENDS AND LIB_LIPO_FLAGS)
-    add_custom_command(OUTPUT ${LIB_OUTPUT_DIR}/lib${name}.a
+    add_custom_command(OUTPUT ${LIB_OUTPUT_DIR}/${CMAKE_INSTALL_LIBDIR}${name}.a
       COMMAND ${CMAKE_COMMAND} -E make_directory ${LIB_OUTPUT_DIR}
       COMMAND ${CMAKE_LIPO} -output
-              ${LIB_OUTPUT_DIR}/lib${name}.a
+              ${LIB_OUTPUT_DIR}/${CMAKE_INSTALL_LIBDIR}${name}.a
               -create ${LIB_LIPO_FLAGS}
       DEPENDS ${LIB_DEPENDS}
       )
     add_custom_target(${name}
-      DEPENDS ${LIB_OUTPUT_DIR}/lib${name}.a)
+      DEPENDS ${LIB_OUTPUT_DIR}/${CMAKE_INSTALL_LIBDIR}${name}.a)
     set_target_properties(${name} PROPERTIES FOLDER "Compiler-RT/Misc")
     add_dependencies(${LIB_PARENT_TARGET} ${name})
 
@@ -360,7 +360,7 @@ function(darwin_lipo_libs name)
     else()
       set(install_component ${name})
     endif()
-    install(FILES ${LIB_OUTPUT_DIR}/lib${name}.a
+    install(FILES ${LIB_OUTPUT_DIR}/${CMAKE_INSTALL_LIBDIR}${name}.a
       DESTINATION ${LIB_INSTALL_DIR}
       COMPONENT ${install_component})
     add_compiler_rt_install_targets(${name} PARENT_TARGET ${LIB_PARENT_TARGET})

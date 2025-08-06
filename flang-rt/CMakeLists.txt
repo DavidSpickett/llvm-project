@@ -108,9 +108,9 @@ else ()
   # be installed there using the same prefix. This is to not have a difference
   # between bootstrap and standalone runtimes builds.
   set(FLANG_RT_OUTPUT_RESOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
-  set(FLANG_RT_INSTALL_RESOURCE_PATH_DEFAULT "lib${LLVM_LIBDIR_SUFFIX}/clang/${LLVM_VERSION_MAJOR}")
+  set(FLANG_RT_INSTALL_RESOURCE_PATH_DEFAULT "${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}/clang/${LLVM_VERSION_MAJOR}")
 
-  extend_path(FLANG_RT_OUTPUT_RESOURCE_LIB_DIR "${FLANG_RT_OUTPUT_RESOURCE_DIR}" "lib${LLVM_LIBDIR_SUFFIX}")
+  extend_path(FLANG_RT_OUTPUT_RESOURCE_LIB_DIR "${FLANG_RT_OUTPUT_RESOURCE_DIR}" "${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}")
 endif ()
 set(FLANG_RT_INSTALL_RESOURCE_PATH "${FLANG_RT_INSTALL_RESOURCE_PATH_DEFAULT}"
     CACHE PATH "Path to install runtime libraries to (default: clang resource dir)")

@@ -28,7 +28,7 @@ string(REPLACE "${CMAKE_CFG_INTDIR}" "." llvm_cmake_builddir "${LLVM_LIBRARY_DIR
 
 # These two variables contain absolute paths, so only use them for the
 # build directory 'MLIRConfig.cmake'.
-set(mlir_cmake_builddir "${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/cmake/mlir")
+set(mlir_cmake_builddir "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}/cmake/mlir")
 set(llvm_cmake_builddir "${llvm_cmake_builddir}/cmake/llvm")
 
 # -----------------------------------------------------------------------------

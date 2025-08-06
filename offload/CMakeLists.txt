@@ -28,15 +28,15 @@ set(OFFLOAD_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 if(OPENMP_STANDALONE_BUILD)
   set(OFFLOAD_LIBDIR_SUFFIX "" CACHE STRING
     "Suffix of lib installation directory, e.g. 64 => lib64")
-  set(OFFLOAD_INSTALL_LIBDIR "lib${OFFLOAD_LIBDIR_SUFFIX}" CACHE STRING
+  set(OFFLOAD_INSTALL_LIBDIR "${CMAKE_INSTALL_LIBDIR}${OFFLOAD_LIBDIR_SUFFIX}" CACHE STRING
       "Path where built offload libraries should be installed.")
 else()
   # When building in tree we install the runtime according to the LLVM settings.
   if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
-    set(OFFLOAD_INSTALL_LIBDIR lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE} CACHE STRING
+    set(OFFLOAD_INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE} CACHE STRING
       "Path where built offload libraries should be installed.")
   else()
-    set(OFFLOAD_INSTALL_LIBDIR "lib${LLVM_LIBDIR_SUFFIX}" CACHE STRING
+    set(OFFLOAD_INSTALL_LIBDIR "${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}" CACHE STRING
       "Path where built offload libraries should be installed.")
   endif()
 endif()
@@ -66,7 +66,7 @@ if (OPENMP_STANDALONE_BUILD)
   set(OPENMP_LIBDIR_SUFFIX "" CACHE STRING
     "Suffix of lib installation directory, e.g. 64 => lib64")
   # Do not use OPENMP_LIBDIR_SUFFIX directly, use OPENMP_INSTALL_LIBDIR.
-  set(OPENMP_INSTALL_LIBDIR "lib${OPENMP_LIBDIR_SUFFIX}")
+  set(OPENMP_INSTALL_LIBDIR "${CMAKE_INSTALL_LIBDIR}${OPENMP_LIBDIR_SUFFIX}")
 
   # Used by llvm_add_tool() and tests.
   set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_CURRENT_BINARY_DIR})
@@ -86,7 +86,7 @@ if (OPENMP_STANDALONE_BUILD)
 else()
   set(OPENMP_ENABLE_WERROR ${LLVM_ENABLE_WERROR})
   # If building in tree, we honor the same install suffix LLVM uses.
-  set(OPENMP_INSTALL_LIBDIR "lib${LLVM_LIBDIR_SUFFIX}")
+  set(OPENMP_INSTALL_LIBDIR "${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}")
 
   if (NOT MSVC)
     set(OPENMP_TEST_C_COMPILER ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang)

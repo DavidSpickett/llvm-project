@@ -10,7 +10,7 @@ endif()
 # Provide the MLIR CMake module dir so that the out of tree Standalone
 # dialect and can add it to the module path.
 set(MLIR_CMAKE_DIR
-  "${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/cmake/mlir")
+  "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}/cmake/mlir")
 
 # Passed to lit.site.cfg.py.in to set up the path where to find libraries.
 set(MLIR_LIB_DIR ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})

@@ -187,7 +187,7 @@ General purpose options
 
 .. option:: LIBCXX_INSTALL_LIBRARY_DIR:PATH
 
-  **Default**: ``lib${LIBCXX_LIBDIR_SUFFIX}``
+  **Default**: ``${CMAKE_INSTALL_LIBDIR}${LIBCXX_LIBDIR_SUFFIX}``
 
   Path where built libc++ libraries should be installed. If a relative path,
   relative to ``CMAKE_INSTALL_PREFIX``.

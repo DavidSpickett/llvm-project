@@ -168,7 +168,7 @@ if(TARGET clang)
       set(LIBCXX_GENERATED_INCLUDE_DIR "${LLVM_BINARY_DIR}/include/c++/v1")
       set(LIBCXX_GENERATED_INCLUDE_TARGET_DIR "${LLVM_BINARY_DIR}/include/${LLVM_DEFAULT_TARGET_TRIPLE}/c++/v1")
     else()
-      set(LIBCXX_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib${LIBCXX_LIBDIR_SUFFIX})
+      set(LIBCXX_LIBRARY_DIR ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}${LIBCXX_LIBDIR_SUFFIX})
       set(LIBCXX_GENERATED_INCLUDE_DIR "${CMAKE_BINARY_DIR}/include/c++/v1")
     endif()
   endif()
@@ -186,7 +186,7 @@ if(TARGET clang)
         # These variables make sure the API tests can run against a custom
         # build of libcxx even for standalone builds.
         set(LLDB_HAS_LIBCXX ON)
-        set(LIBCXX_LIBRARY_DIR "${LLDB_TEST_LIBCXX_ROOT_DIR}/lib${LIBCXX_LIBDIR_SUFFIX}")
+        set(LIBCXX_LIBRARY_DIR "${LLDB_TEST_LIBCXX_ROOT_DIR}/${CMAKE_INSTALL_LIBDIR}${LIBCXX_LIBDIR_SUFFIX}")
         set(LIBCXX_GENERATED_INCLUDE_DIR "${LLDB_TEST_LIBCXX_ROOT_DIR}/include/c++/v1")
       else()
         message(SEND_ERROR

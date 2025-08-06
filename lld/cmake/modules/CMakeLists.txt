@@ -8,7 +8,7 @@ include(FindPrefixFromConfig)
 set(LLD_INSTALL_PACKAGE_DIR "${CMAKE_INSTALL_PACKAGEDIR}/lld" CACHE STRING
   "Path for CMake subdirectory for LLD (defaults to '${CMAKE_INSTALL_PACKAGEDIR}/lld')")
 # CMAKE_INSTALL_PACKAGEDIR might be absolute, so don't reuse below.
-set(lld_cmake_builddir "${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/cmake/lld")
+set(lld_cmake_builddir "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}/cmake/lld")
 
 # Keep this in sync with llvm/cmake/CMakeLists.txt!
 set(LLVM_INSTALL_PACKAGE_DIR "${CMAKE_INSTALL_PACKAGEDIR}/llvm" CACHE STRING

@@ -140,7 +140,7 @@ function(compileDeviceRTLLibrary target_name target_triple)
                       "-fuse-ld=lld" "-march=" "-mcpu=")
   install(TARGETS libomptarget-${target_name}
           PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ
-          DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/${target_triple}")
+          DESTINATION "${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}/${target_triple}")
 
   add_library(omptarget.${target_name}.all_objs OBJECT IMPORTED)
   set_property(TARGET omptarget.${target_name}.all_objs APPEND PROPERTY IMPORTED_OBJECTS
@@ -160,7 +160,7 @@ function(compileDeviceRTLLibrary target_name target_triple)
                        "-Wl,--lto-emit-llvm" "-fuse-ld=lld" "-march=" "-mcpu=")
 
   install(TARGETS omptarget.${target_name}
-          ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/${target_triple}")
+          ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}/${target_triple}")
 
   if (CMAKE_EXPORT_COMPILE_COMMANDS)
     set(ide_target_name omptarget-ide-${target_name})

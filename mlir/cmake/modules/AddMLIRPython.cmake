@@ -455,7 +455,7 @@ function(mlir_python_setup_extension_rpath target)
     set_property(TARGET ${target} APPEND PROPERTY
       BUILD_RPATH "${_real_lib_dir}")
     set_property(TARGET ${target} APPEND PROPERTY
-      INSTALL_RPATH "${_origin_prefix}/${ARG_RELATIVE_INSTALL_ROOT}/lib${LLVM_LIBDIR_SUFFIX}")
+      INSTALL_RPATH "${_origin_prefix}/${ARG_RELATIVE_INSTALL_ROOT}/${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}")
   endif()
 endfunction()
 

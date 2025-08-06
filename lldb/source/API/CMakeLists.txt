@@ -155,7 +155,7 @@ add_lldb_library(liblldb SHARED ${option_framework}
 # (LLVM_LINK_LLVM_DYLIB). Add an additional rpath $ORIGIN/../../../../lib so
 # that _lldb.so can be loaded from Python.
 if(LLDB_ENABLE_PYTHON AND (BUILD_SHARED_LIBS OR LLVM_LINK_LLVM_DYLIB) AND UNIX AND NOT APPLE)
-  set_property(TARGET liblldb APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../../../lib${LLVM_LIBDIR_SUFFIX}")
+  set_property(TARGET liblldb APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../../../${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX}")
 endif()
 
 if(Python3_RPATH)
