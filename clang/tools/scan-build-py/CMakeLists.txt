@@ -111,18 +111,18 @@ foreach(resource ${LibScanbuildResources})
 endforeach()
 
 foreach(lib ${LibEar})
-  add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/lib/libear/${lib}
+  add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}/libear/${lib}
                      COMMAND ${CMAKE_COMMAND} -E make_directory
-                       ${CMAKE_BINARY_DIR}/lib
+                       ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}
                      COMMAND ${CMAKE_COMMAND} -E make_directory
-                       ${CMAKE_BINARY_DIR}/lib/libear
+                       ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}/libear
                      COMMAND ${CMAKE_COMMAND} -E copy
                        ${CMAKE_CURRENT_SOURCE_DIR}/lib/libear/${lib}
-                       ${CMAKE_BINARY_DIR}/lib/libear/
+                       ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}/libear/
                      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/lib/libear/${lib})
-  list(APPEND Depends ${CMAKE_BINARY_DIR}/lib/libear/${lib})
+  list(APPEND Depends ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}/libear/${lib})
   install(FILES lib/libear/${lib}
-          DESTINATION lib/libear
+          DESTINATION ${CMAKE_INSTALL_LIBDIR}/libear
           COMPONENT scan-build-py)
 endforeach()
 
