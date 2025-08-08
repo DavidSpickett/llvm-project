@@ -365,7 +365,8 @@ int main(int argc, char **argv) {
       sys::fs::make_absolute(ActivePrefix, Path);
       ActiveBinDir = std::string(Path);
     }
-    ActiveLibDir = ActivePrefix + "/lib" + LLVM_LIBDIR_SUFFIX;
+    ActiveLibDir =
+        ActivePrefix + "/" + CMAKE_INSTALL_LIBDIR + LLVM_LIBDIR_SUFFIX;
     {
       SmallString<256> Path(LLVM_INSTALL_PACKAGE_DIR);
       sys::fs::make_absolute(ActivePrefix, Path);
