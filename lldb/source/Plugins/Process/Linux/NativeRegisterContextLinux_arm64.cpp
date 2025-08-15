@@ -108,19 +108,18 @@ NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
     if (NativeProcessLinux::PtraceWrapper(PTRACE_GETREGSET,
                                           native_thread.GetID(), &regset,
                                           &ioVec, sizeof(sve_header))
-            .Success()) {
+            .Success())
       opt_regsets.Set(RegisterInfoPOSIX_arm64::eRegsetMaskSVE);
 
-      // We may also have the Scalable Matrix Extension (SME) which adds a
-      // streaming SVE mode.
-      ioVec.iov_len = sizeof(sve_header);
-      regset = NT_ARM_SSVE;
-      if (NativeProcessLinux::PtraceWrapper(PTRACE_GETREGSET,
-                                            native_thread.GetID(), &regset,
-                                            &ioVec, sizeof(sve_header))
-              .Success())
-        opt_regsets.Set(RegisterInfoPOSIX_arm64::eRegsetMaskSSVE);
-    }
+    // We may have the Scalable Matrix Extension (SME) which adds a
+    // streaming SVE mode. Systems can have SVE and/or SME.
+    ioVec.iov_len = sizeof(sve_header);
+    regset = NT_ARM_SSVE;
+    if (NativeProcessLinux::PtraceWrapper(PTRACE_GETREGSET,
+                                          native_thread.GetID(), &regset,
+                                          &ioVec, sizeof(sve_header))
+            .Success())
+      opt_regsets.Set(RegisterInfoPOSIX_arm64::eRegsetMaskSSVE);
 
     sve::user_za_header za_header;
     ioVec.iov_base = &za_header;
@@ -271,10 +270,14 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
 
   const uint32_t reg = reg_info->kinds[lldb::eRegisterKindLLDB];
 
-  if (reg == LLDB_INVALID_REGNUM)
+  if (reg == LLDB_INVALID_REGNUM) {
+    printf("Could not get REGNUM!\n");
     return Status::FromErrorStringWithFormat(
         "no lldb regnum for %s",
         reg_info && reg_info->name ? reg_info->name : "<unknown register>");
+  }
+
+  printf("ReadRegister [%-8s] IsGPR: %d IsFPR: %d IsSVE: %d IsSME: %d\n", reg_info->name, IsGPR(reg), IsFPR(reg), IsSVE(reg), IsSME(reg));
 
   uint8_t *src;
   uint32_t offset = LLDB_INVALID_INDEX32;
@@ -291,7 +294,9 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
     src = (uint8_t *)GetGPRBuffer() + offset;
 
   } else if (IsFPR(reg)) {
-    if (m_sve_state == SVEState::Disabled) {
+    printf("Reading FPR\n");
+    // TODO: not sure if we should use the FP route for streaming only disabled...
+    if (m_sve_state == SVEState::Disabled || m_sve_state == SVEState::StreamingFPSIMD) {
       // SVE is disabled take legacy route for FPU register access
       error = ReadFPR();
       if (error.Fail())
@@ -301,6 +306,8 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
       assert(offset < GetFPRSize());
       src = (uint8_t *)GetFPRBuffer() + offset;
     } else {
+      printf("Using SVE/SSVE route...\n");
+
       // SVE or SSVE enabled, we will read and cache SVE ptrace data.
       // In SIMD or Full mode, the data comes from the SVE regset. In streaming
       // mode it comes from the streaming SVE regset.
@@ -348,10 +355,30 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
     if (m_sve_state == SVEState::Disabled || m_sve_state == SVEState::Unknown)
       return Status::FromErrorString("SVE disabled or not supported");
 
+    printf("Read SVE reg %d\n", reg);
+
     if (GetRegisterInfo().IsSVERegVG(reg)) {
+      error = ReadSVEHeader();
+      if (error.Fail()) {
+        printf("Failed to read VG!\n");
+        return error;
+      }
+
       sve_vg = GetSVERegVG();
       src = (uint8_t *)&sve_vg;
     } else {
+      printf("Reading other non-vg SVE register...");
+      // When we only have SME and streaming mode is disabled we cannot read the
+      // streaming mode registers, but LLDB will ask for them since we did list
+      // them in the target XML. Fake some zeros so it has something to display.
+      if (m_sve_state == SVEState::StreamingFPSIMD) {
+        printf("Faking Z data...\n");
+        std::vector<uint8_t> fake_z(reg_info->byte_size, 0);
+        reg_value.SetFromMemoryData(*reg_info, &fake_z[0], reg_info->byte_size,
+                                    eByteOrderLittle, error);
+        return error;
+      }
+
       // SVE enabled, we will read and cache SVE ptrace data
       error = ReadAllSVE();
       if (error.Fail())
@@ -1209,7 +1236,9 @@ Status NativeRegisterContextLinux_arm64::ReadFPR() {
   ioVec.iov_base = GetFPRBuffer();
   ioVec.iov_len = GetFPRSize();
 
+  printf("About to read FPR.\n");
   error = ReadRegisterSet(&ioVec, GetFPRSize(), NT_FPREGSET);
+  printf("Got error.Success(): %d\n", error.Success());
 
   if (error.Success())
     m_fpu_is_valid = true;
@@ -1250,7 +1279,13 @@ void NativeRegisterContextLinux_arm64::InvalidateAllRegisters() {
 }
 
 unsigned NativeRegisterContextLinux_arm64::GetSVERegSet() {
-  return m_sve_state == SVEState::Streaming ? NT_ARM_SSVE : NT_ARM_SVE;
+  switch (m_sve_state) {
+    case SVEState::Streaming:
+    case SVEState::StreamingFPSIMD:
+      return NT_ARM_SSVE;
+    default:
+      return NT_ARM_SVE;
+  }
 }
 
 Status NativeRegisterContextLinux_arm64::ReadSVEHeader() {
@@ -1597,39 +1632,77 @@ void NativeRegisterContextLinux_arm64::ConfigureRegisterContext() {
   // streaming SVE mode.
   // If m_sve_state is set to SVEState::Disabled on first stop, code below will
   // be deemed non operational for the lifetime of current process.
-  if (!m_sve_header_is_valid && m_sve_state != SVEState::Disabled) {
-    // If we have SVE we may also have the SVE streaming mode that SME added.
-    // We can read the header of either mode, but only the active mode will
-    // have valid register data.
+  // TODO: we need a "streaming only" state, otherwise setting disabled here
+  // means we don't recheck it when streaming mode gets enabled.
+  if (!m_sve_header_is_valid /*&& m_sve_state != SVEState::Disabled*/) {
+    // Systems may have SVE and/or SME. If they are SME only, the SVE regset
+    // cannot be read from but the SME one can. If they have both SVE and SME,
+    // only the active mode will return valid register data.
 
-    // Check whether SME is present and the streaming SVE mode is active.
+    // TODO: optimise this
+
     m_sve_header_is_valid = false;
     m_sve_buffer_is_valid = false;
     m_sve_state = SVEState::Streaming;
     Status error = ReadSVEHeader();
 
-    // Streaming mode is active if the header has the SVE active flag set.
-    if (!(error.Success() && ((m_sve_header.flags & sve::ptrace_regs_mask) ==
-                              sve::ptrace_regs_sve))) {
-      // Non-streaming might be active instead.
-      m_sve_header_is_valid = false;
-      m_sve_buffer_is_valid = false;
+    bool has_sme = error.Success();
+    bool sme_is_active = has_sme && ((m_sve_header.flags & sve::ptrace_regs_mask) ==
+                              sve::ptrace_regs_sve);
+
+    m_sve_header_is_valid = false;
+    m_sve_buffer_is_valid = false;
+    m_sve_state = SVEState::Full;
+    error = ReadSVEHeader();
+
+    bool has_sve = error.Success();
+    bool sve_is_active = has_sve && ((m_sve_header.flags & sve::ptrace_regs_mask) ==
+                            sve::ptrace_regs_sve);
+    // We do not check this for streaming mode because the streaming mode regset
+    // will never be in FP format.
+    bool fp_is_active =  has_sve && ((m_sve_header.flags & sve::ptrace_regs_mask) ==
+                            sve::ptrace_regs_fpsimd);
+
+    if (sme_is_active)
+      m_sve_state = SVEState::Streaming;
+    else if (sve_is_active)
       m_sve_state = SVEState::Full;
-      error = ReadSVEHeader();
-      if (error.Success()) {
-        // If SVE is enabled thread can switch between SVEState::FPSIMD and
-        // SVEState::Full on every stop.
-        if ((m_sve_header.flags & sve::ptrace_regs_mask) ==
-            sve::ptrace_regs_fpsimd)
-          m_sve_state = SVEState::FPSIMD;
-        // Else we are in SVEState::Full.
-      } else {
-        m_sve_state = SVEState::Disabled;
-      }
-    }
+    else if (fp_is_active)
+      m_sve_state = SVEState::FPSIMD;
+    else if (has_sme)
+      m_sve_state = SVEState::StreamingFPSIMD;
+    else
+      m_sve_state = SVEState::Disabled;
+
+    // // Streaming mode is active if the header has the SVE active flag set.
+    // if (!(error.Success() && ((m_sve_header.flags & sve::ptrace_regs_mask) ==
+    //                           sve::ptrace_regs_sve))) {
+    //   // Non-streaming might be active instead.
+    //   m_sve_header_is_valid = false;
+    //   m_sve_buffer_is_valid = false;
+    //   m_sve_state = SVEState::Full;
+    //   error = ReadSVEHeader();
+    //   if (error.Success()) {
+    //     // If SVE is enabled thread can switch between SVEState::FPSIMD and
+    //     // SVEState::Full on every stop.
+    //     if ((m_sve_header.flags & sve::ptrace_regs_mask) ==
+    //         sve::ptrace_regs_fpsimd)
+    //       m_sve_state = SVEState::FPSIMD;
+    //     // Else we are in SVEState::Full.
+    //   } else {
+    //     m_sve_state = SVEState::Disabled;
+    //   }
+    // }
+
+    printf("SVE state detected as: %d\n", m_sve_state);
 
     if (m_sve_state == SVEState::Full || m_sve_state == SVEState::FPSIMD ||
-        m_sve_state == SVEState::Streaming) {
+        m_sve_state == SVEState::Streaming || m_sve_state == SVEState::StreamingFPSIMD) {
+
+      m_sve_header_is_valid = false;
+      m_sve_buffer_is_valid = false;
+      error = ReadSVEHeader();
+
       // On every stop we configure SVE vector length by calling
       // ConfigureVectorLengthSVE regardless of current SVEState of this thread.
       uint32_t vq = RegisterInfoPOSIX_arm64::eVectorQuadwordAArch64SVE;

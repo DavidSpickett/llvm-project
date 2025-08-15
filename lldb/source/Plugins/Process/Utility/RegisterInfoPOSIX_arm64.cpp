@@ -246,6 +246,7 @@ RegisterInfoPOSIX_arm64::RegisterInfoPOSIX_arm64(
     // to create dynamic register infos and regset array. Push back all optional
     // register infos and regset and calculate register offsets accordingly.
     if (m_opt_regsets.AnySet(eRegsetMaskSVE | eRegsetMaskSSVE)) {
+      printf("Adding SVE registers!\n");
       m_register_info_p = g_register_infos_arm64_sve_le;
       m_register_info_count = sve_ffr + 1;
       m_per_regset_regnum_range[m_register_set_count++] =
@@ -541,10 +542,13 @@ void RegisterInfoPOSIX_arm64::ConfigureVectorLengthZA(uint32_t za_vq) {
 }
 
 bool RegisterInfoPOSIX_arm64::IsSVEReg(unsigned reg) const {
-  if (m_vector_reg_vq > eVectorQuadwordAArch64)
+  if (m_vector_reg_vq > eVectorQuadwordAArch64) {
+    printf("checking if sve register...\n");
     return (sve_vg <= reg && reg <= sve_ffr);
-  else
-    return false;
+  }
+
+  printf("could not check if sve register, assuming not...\n");
+  return false;
 }
 
 bool RegisterInfoPOSIX_arm64::IsSVEZReg(unsigned reg) const {
