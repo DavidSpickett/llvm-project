@@ -120,8 +120,14 @@ bool ArchitectureAArch64::ReconfigureRegisterInfo(DynamicRegisterInfo &reg_info,
     }
   }
 
-  if (!vg_reg_value && !svg_reg_value)
+  printf("vg_reg_value: %d svg_reg_value: %d\n", bool(vg_reg_value), bool(svg_reg_value));
+  if (!vg_reg_value && !svg_reg_value) {
     return false;
+  }
+
+  // TODO: we need to fake a VG for SME only systems really.
+  if (!vg_reg_value)
+    vg_reg_value = svg_reg_value;
 
   auto regs = reg_info.registers<DynamicRegisterInfo::reg_collection_range>();
   if (vg_reg_value)

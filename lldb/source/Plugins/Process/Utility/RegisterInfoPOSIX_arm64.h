@@ -15,7 +15,7 @@
 #include "lldb/lldb-private.h"
 #include <map>
 
-enum class SVEState : uint8_t { Unknown, Disabled, FPSIMD, Full, Streaming };
+enum class SVEState : uint8_t { Unknown, Disabled, FPSIMD, Full, Streaming, StreamingFPSIMD };
 
 class RegisterInfoPOSIX_arm64
     : public lldb_private::RegisterInfoAndSetInterface {
