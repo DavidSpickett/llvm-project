@@ -367,15 +367,54 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
       sve_vg = GetSVERegVG();
       src = (uint8_t *)&sve_vg;
     } else {
-      printf("Reading other non-vg SVE register...");
+      printf("Reading other non-vg SVE register %s\n", reg_info->name);
       // When we only have SME and streaming mode is disabled we cannot read the
       // streaming mode registers, but LLDB will ask for them since we did list
-      // them in the target XML. Fake some zeros so it has something to display.
+      // them in the target XML. It will also ask for them when it needs to read
+      // FP registers as those are described as a subset of the Z registers.
       if (m_sve_state == SVEState::StreamingFPSIMD) {
-        printf("Faking Z data...\n");
+        // For predicate registers, just return 0s.
+        if (GetRegisterInfo().IsSVEPReg(reg) || GetRegisterInfo().IsSVERegFFR(reg)) {
+          std::vector<uint8_t> fake_p(reg_info->byte_size, 0);
+          reg_value.SetFromMemoryData(*reg_info, &fake_p[0], reg_info->byte_size,
+                                      eByteOrderLittle, error);
+          return error;
+        }
+
+        // For Z registers, use FP as the low 128 bits and zero the rest.
+        // TODO: would it be easier to fake an FPSIMD format FP context and
+        // let the existing code handle it?
+        error = ReadFPR();
+        if (error.Fail())
+          return error;
+
+        uint32_t z_num = reg - GetRegisterInfo().GetRegNumSVEZ0();
+        printf("z_num: %d\n", z_num);
+        uint32_t fp_reg_num = GetRegisterInfo().GetRegNumFPV0() + z_num;
+        // TODO: safe? Even works???
+        const lldb_private::RegisterInfo *fp_reg_info = GetRegisterInfo().GetRegisterInfo() + fp_reg_num;
+        printf("Copying from %s to make Z reg value\n", fp_reg_info->name);
+
+        // The V registers seem to be pointed at the Z registers which makes their
+        // offsets useless. Make some assumptions and calculate it manually:
+        // struct user_fpsimd_state {
+        // 	__uint128_t	vregs[32];
+        // 	__u32		fpsr;
+        // 	__u32		fpcr;
+        // 	__u32		__reserved[2];
+        // };
+        // Note this is Z number not the fp_reg_num that we just use for getting
+        // info.
+        offset = z_num * 16;
+        printf("offset: %d\n", offset);
+        assert(offset < GetFPRSize());
+        src = (uint8_t *)GetFPRBuffer() + offset;
+
         std::vector<uint8_t> fake_z(reg_info->byte_size, 0);
+        std::memcpy(&fake_z[0], src, 16 /* 128 bits */);
         reg_value.SetFromMemoryData(*reg_info, &fake_z[0], reg_info->byte_size,
-                                    eByteOrderLittle, error);
+                                      eByteOrderLittle, error);
+
         return error;
       }
 

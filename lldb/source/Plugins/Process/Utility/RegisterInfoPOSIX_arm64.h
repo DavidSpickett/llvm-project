@@ -143,6 +143,7 @@ public:
   bool IsSVEZReg(unsigned reg) const;
   bool IsSVEPReg(unsigned reg) const;
   bool IsSVERegVG(unsigned reg) const;
+  bool IsSVERegFFR(unsigned reg) const;
   bool IsPAuthReg(unsigned reg) const;
   bool IsMTEReg(unsigned reg) const;
   bool IsTLSReg(unsigned reg) const;
@@ -156,6 +157,7 @@ public:
   uint32_t GetRegNumSVEFFR() const;
   uint32_t GetRegNumFPCR() const;
   uint32_t GetRegNumFPSR() const;
+  uint32_t GetRegNumFPV0() const;
   uint32_t GetRegNumSVEVG() const;
   uint32_t GetRegNumSMESVG() const;
   uint32_t GetPAuthOffset() const;
