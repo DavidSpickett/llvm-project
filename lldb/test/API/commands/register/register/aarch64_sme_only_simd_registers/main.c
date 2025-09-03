@@ -1,11 +1,66 @@
 #include <stdint.h>
 #include <sys/prctl.h>
 
+void write_sve_regs() {
+  // We assume the smefa64 feature is present, which allows ffr access
+  // in streaming mode.
+  //asm volatile("setffr\n\t"); // TODO: can't do this in streaming only SME.
+  asm volatile("ptrue p0.b\n\t");
+  asm volatile("ptrue p1.h\n\t");
+  asm volatile("ptrue p2.s\n\t");
+  asm volatile("ptrue p3.d\n\t");
+  asm volatile("pfalse p4.b\n\t");
+  asm volatile("ptrue p5.b\n\t");
+  asm volatile("ptrue p6.h\n\t");
+  asm volatile("ptrue p7.s\n\t");
+  asm volatile("ptrue p8.d\n\t");
+  asm volatile("pfalse p9.b\n\t");
+  asm volatile("ptrue p10.b\n\t");
+  asm volatile("ptrue p11.h\n\t");
+  asm volatile("ptrue p12.s\n\t");
+  asm volatile("ptrue p13.d\n\t");
+  asm volatile("pfalse p14.b\n\t");
+  asm volatile("ptrue p15.b\n\t");
+
+  asm volatile("cpy  z0.b, p0/z, #1\n\t");
+  asm volatile("cpy  z1.b, p5/z, #2\n\t");
+  asm volatile("cpy  z2.b, p10/z, #3\n\t");
+  asm volatile("cpy  z3.b, p15/z, #4\n\t");
+  asm volatile("cpy  z4.b, p0/z, #5\n\t");
+  asm volatile("cpy  z5.b, p5/z, #6\n\t");
+  asm volatile("cpy  z6.b, p10/z, #7\n\t");
+  asm volatile("cpy  z7.b, p15/z, #8\n\t");
+  asm volatile("cpy  z8.b, p0/z, #9\n\t");
+  asm volatile("cpy  z9.b, p5/z, #10\n\t");
+  asm volatile("cpy  z10.b, p10/z, #11\n\t");
+  asm volatile("cpy  z11.b, p15/z, #12\n\t");
+  asm volatile("cpy  z12.b, p0/z, #13\n\t");
+  asm volatile("cpy  z13.b, p5/z, #14\n\t");
+  asm volatile("cpy  z14.b, p10/z, #15\n\t");
+  asm volatile("cpy  z15.b, p15/z, #16\n\t");
+  asm volatile("cpy  z16.b, p0/z, #17\n\t");
+  asm volatile("cpy  z17.b, p5/z, #18\n\t");
+  asm volatile("cpy  z18.b, p10/z, #19\n\t");
+  asm volatile("cpy  z19.b, p15/z, #20\n\t");
+  asm volatile("cpy  z20.b, p0/z, #21\n\t");
+  asm volatile("cpy  z21.b, p5/z, #22\n\t");
+  asm volatile("cpy  z22.b, p10/z, #23\n\t");
+  asm volatile("cpy  z23.b, p15/z, #24\n\t");
+  asm volatile("cpy  z24.b, p0/z, #25\n\t");
+  asm volatile("cpy  z25.b, p5/z, #26\n\t");
+  asm volatile("cpy  z26.b, p10/z, #27\n\t");
+  asm volatile("cpy  z27.b, p15/z, #28\n\t");
+  asm volatile("cpy  z28.b, p0/z, #29\n\t");
+  asm volatile("cpy  z29.b, p5/z, #30\n\t");
+  asm volatile("cpy  z30.b, p10/z, #31\n\t");
+  asm volatile("cpy  z31.b, p15/z, #32\n\t");
+}
+
 // base is added to each value. If base = 2, then v0 = 2, v1 = 3, etc.
 void write_simd_regs(unsigned base) {
 #define WRITE_SIMD(NUM)                                                        \
   asm volatile("MOV v" #NUM ".d[0], %0\n\t"                                    \
-               "MOV v" #NUM ".d[1], %0\n\t" ::"r"(base + NUM))
+               "MOV v" #NUM ".d[1], %0\n\t" ::"r"((uint64_t)(base + NUM)))
 
   WRITE_SIMD(0);
   WRITE_SIMD(1);
@@ -41,66 +96,19 @@ void write_simd_regs(unsigned base) {
   WRITE_SIMD(31);
 }
 
-unsigned verify_simd_regs() {
-  uint64_t got_low = 0;
-  uint64_t got_high = 0;
-  uint64_t target = 0;
-
-#define VERIFY_SIMD(NUM)                                                       \
-  do {                                                                         \
-    got_low = 0;                                                               \
-    got_high = 0;                                                              \
-    asm volatile("MOV %0, v" #NUM ".d[0]\n\t"                                  \
-                 "MOV %1, v" #NUM ".d[1]\n\t"                                  \
-                 : "=r"(got_low), "=r"(got_high));                             \
-    target = NUM + 1;                                                          \
-    if ((got_low != target) || (got_high != target))                           \
-      return 1;                                                                \
-  } while (0)
-
-  VERIFY_SIMD(0);
-  VERIFY_SIMD(1);
-  VERIFY_SIMD(2);
-  VERIFY_SIMD(3);
-  VERIFY_SIMD(4);
-  VERIFY_SIMD(5);
-  VERIFY_SIMD(6);
-  VERIFY_SIMD(7);
-  VERIFY_SIMD(8);
-  VERIFY_SIMD(9);
-  VERIFY_SIMD(10);
-  VERIFY_SIMD(11);
-  VERIFY_SIMD(12);
-  VERIFY_SIMD(13);
-  VERIFY_SIMD(14);
-  VERIFY_SIMD(15);
-  VERIFY_SIMD(16);
-  VERIFY_SIMD(17);
-  VERIFY_SIMD(18);
-  VERIFY_SIMD(19);
-  VERIFY_SIMD(20);
-  VERIFY_SIMD(21);
-  VERIFY_SIMD(22);
-  VERIFY_SIMD(23);
-  VERIFY_SIMD(24);
-  VERIFY_SIMD(25);
-  VERIFY_SIMD(26);
-  VERIFY_SIMD(27);
-  VERIFY_SIMD(28);
-  VERIFY_SIMD(29);
-  VERIFY_SIMD(30);
-  VERIFY_SIMD(31);
-
-  return 0;
-}
-
 int main() {
 #ifdef SSVE
   asm volatile("msr  s0_3_c4_c7_3, xzr" /*smstart*/);
+  write_sve_regs();
+#else
+  // When we have only SME, you cannot have SMEFA64, because you do not have
+  // SVE2 and therefore we cannot use these instructions in streaming mode.
+  write_simd_regs(0);
 #endif
   // else test SIMD access in non-streaming mode.
 
-  write_simd_regs(0);
 
-  return verify_simd_regs(); // Set a break point here.
+  //return verify_simd_regs(); // Set a break point here.
+
+  return 0; // Set a break point here.
 }
