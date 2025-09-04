@@ -92,11 +92,19 @@ class SVESIMDRegistersTestCase(TestBase):
         #    self.check_simd_sve_values()
 
         # Writes to SVE should change SIMD and vice versa
-        # TODO: pass actual vlen around here
-        value = "{" + " ".join(["0x12"]*32) + "}"
-        self.runCmd(f"register write z0 {value}")
-        # TODO: get application to verify these writes too?
-        self.expect("register read z0", substrs=[value])
+        if mode == Mode.SSVE:
+            # TODO: pass actual vlen around here
+            value = "{" + " ".join(["0x12"]*32) + "}"
+            self.runCmd(f'register write z0 "{value}"')
+            # TODO: get application to verify these writes too?
+            self.expect("register read z0", substrs=[value])
+            simd_value = "{" + " ".join(["0x12"]*16) + "}"
+            self.expect("register read v0", substrs=[simd_value])
+
+            value = "{" + " ".join(["0x34"]*16) + "}"
+            self.runCmd(f'register write v0 "{value}"')
+            self.expect('register read v0', substrs=[value])
+        else:
 
 
         # self.runCmd("expression write_simd_regs(1)")
