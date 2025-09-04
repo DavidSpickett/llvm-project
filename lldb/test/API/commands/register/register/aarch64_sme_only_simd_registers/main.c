@@ -103,7 +103,7 @@ int main() {
 #else
   // When we have only SME, you cannot have SMEFA64, because you do not have
   // SVE2 and therefore we cannot use these instructions in streaming mode.
-  write_simd_regs(0);
+  write_simd_regs(1);
 #endif
   // else test SIMD access in non-streaming mode.
 

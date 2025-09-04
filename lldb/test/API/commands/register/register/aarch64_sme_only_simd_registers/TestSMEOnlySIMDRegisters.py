@@ -37,15 +37,17 @@ class SVESIMDRegistersTestCase(TestBase):
         pad = " ".join(["0x00"] * 7)
         return "{{0x{:02x} {} 0x{:02x} {}}}".format(n, pad, n, pad)
 
-    def make_sve_value(self, n):
-        # TODO: find actual vlen
-        return "{" + " ".join([f"0x{n:02x}" for _ in range(32)]) + "}"
-
-    def check_sve_values(self):
+    def check_streaming_sve_values(self):
         for i in range(32):
-            self.expect(f"register read z{i}", substrs=[self.make_sve_value(i + 1)])
+            expected = "{" + " ".join([f"0x{i+1:02x}" for _ in range(32)]) + "}"
+            self.expect(f"register read z{i}", substrs=[expected])
 
-    def check_simd_values(self, value_offset):
+    def check_streaming_simd_values(self):
+        for i in range(32):
+            expected = "{" + " ".join([f"0x{i+1:02x}" for _ in range(16)]) + "}"
+            self.expect(f"register read v{i}", substrs=[expected])
+
+    def check_simd_simd_values(self, value_offset):
         # These are 128 bit registers, so getting them from the API as unsigned
         # values doesn't work. Check the command output instead.
         for i in range(32):
@@ -53,6 +55,14 @@ class SVESIMDRegistersTestCase(TestBase):
                 "register read v{}".format(i),
                 substrs=[self.make_simd_value(i + value_offset)],
             )
+
+    def check_simd_sve_values(self):
+        for i in range(32):
+            # SVE registers overlap the V registers.
+            v_reg = f"0x{i+1:02x} " + " ".join(["0x00"] * 7) + " "
+            # And the rest is fake 0s.
+            expected = "{" + v_reg + v_reg + " ".join(["0x00"] * 16) + "}"
+            self.expect(f"register read z{i}", substrs=[expected])
 
     def sve_simd_registers_impl(self, mode):
         self.skip_if_needed(mode)
@@ -75,9 +85,11 @@ class SVESIMDRegistersTestCase(TestBase):
         )
 
         if mode == Mode.SSVE:
-            self.check_sve_values()
+            self.check_streaming_sve_values()
+            self.check_streaming_simd_values()
         else:
-            self.check_simd_values(1)
+            self.check_simd_simd_values(1)
+            self.check_simd_sve_values()
         # self.runCmd("expression write_simd_regs(1)")
         # self.check_simd_values(0)
 
@@ -94,9 +106,14 @@ class SVESIMDRegistersTestCase(TestBase):
         # # The program should agree with lldb.
         # self.expect("continue", substrs=["exited with status = 0"])
 
+    # @no_debug_info_test
+    # @skipIf(archs=no_match(["aarch64"]))
+    # @skipIf(oslist=no_match(["linux"]))
+    # Def test_simd_registers_ssve(self):
+    #     self.sve_simd_registers_impl(Mode.SSVE)
+
     @no_debug_info_test
     @skipIf(archs=no_match(["aarch64"]))
     @skipIf(oslist=no_match(["linux"]))
-    def test_simd_registers_ssve(self):
-        """Test read/write of SIMD registers when in SSVE mode."""
-        self.sve_simd_registers_impl(Mode.SSVE)
+    def test_simd_registers_simd(self):
+        self.sve_simd_registers_impl(Mode.SIMD)
