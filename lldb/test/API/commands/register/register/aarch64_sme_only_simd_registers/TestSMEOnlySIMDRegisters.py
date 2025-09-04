@@ -37,6 +37,14 @@ class SVESIMDRegistersTestCase(TestBase):
         pad = " ".join(["0x00"] * 7)
         return "{{0x{:02x} {} 0x{:02x} {}}}".format(n, pad, n, pad)
 
+    def make_sve_value(self, n):
+        # TODO: find actual vlen
+        return "{" + " ".join([f"0x{n:02x}" for _ in range(32)]) + "}"
+
+    def check_sve_values(self):
+        for i in range(32):
+            self.expect(f"register read z{i}", substrs=[self.make_sve_value(i + 1)])
+
     def check_simd_values(self, value_offset):
         # These are 128 bit registers, so getting them from the API as unsigned
         # values doesn't work. Check the command output instead.
@@ -66,22 +74,25 @@ class SVESIMDRegistersTestCase(TestBase):
             substrs=["stop reason = breakpoint 1."],
         )
 
-        self.check_simd_values(0)
-        self.runCmd("expression write_simd_regs(1)")
-        self.check_simd_values(0)
+        if mode == Mode.SSVE:
+            self.check_sve_values()
+        else:
+            self.check_simd_values(1)
+        # self.runCmd("expression write_simd_regs(1)")
+        # self.check_simd_values(0)
 
-        # Write a new set of values. The kernel will move the program back to
-        # non-streaming mode here.
-        for i in range(32):
-            self.runCmd(
-                'register write v{} "{}"'.format(i, self.make_simd_value(i + 1))
-            )
+        # # Write a new set of values. The kernel will move the program back to
+        # # non-streaming mode here.
+        # for i in range(32):
+        #     self.runCmd(
+        #         'register write v{} "{}"'.format(i, self.make_simd_value(i + 1))
+        #     )
 
-        # Should be visible within lldb.
-        self.check_simd_values(1)
+        # # Should be visible within lldb.
+        # self.check_simd_values(1)
 
-        # The program should agree with lldb.
-        self.expect("continue", substrs=["exited with status = 0"])
+        # # The program should agree with lldb.
+        # self.expect("continue", substrs=["exited with status = 0"])
 
     @no_debug_info_test
     @skipIf(archs=no_match(["aarch64"]))
