@@ -107,8 +107,12 @@ class SVESIMDRegistersTestCase(TestBase):
             sve_value = "{" + " ".join(["0x34"]*16) + " " + " ".join(["0x12"]*16) + "}"
             self.expect('register read z0', substrs=[sve_value])
         else:
-            pass
-
+            # In SIMD mode if we write Z0, only the parts that overlap
+            # D0 should apply.
+            value = "{" + " ".join(["0x12"]*32) + "}"
+            self.runCmd(f'register write z0 "{value}"')
+            expected_sve = "{" + " ".join(["0x12"]*16) + " " + " ".join(["0x00"]*16) + "}"
+            self.expect("register read z0", substrs=[value])
 
         # self.runCmd("expression write_simd_regs(1)")
         # self.check_simd_values(0)
@@ -126,14 +130,14 @@ class SVESIMDRegistersTestCase(TestBase):
         # # The program should agree with lldb.
         # self.expect("continue", substrs=["exited with status = 0"])
 
-    @no_debug_info_test
-    @skipIf(archs=no_match(["aarch64"]))
-    @skipIf(oslist=no_match(["linux"]))
-    def test_simd_registers_ssve(self):
-        self.sve_simd_registers_impl(Mode.SSVE)
-
     # @no_debug_info_test
     # @skipIf(archs=no_match(["aarch64"]))
     # @skipIf(oslist=no_match(["linux"]))
-    # def test_simd_registers_simd(self):
-    #     self.sve_simd_registers_impl(Mode.SIMD)
+    # def test_simd_registers_ssve(self):
+    #     self.sve_simd_registers_impl(Mode.SSVE)
+
+    @no_debug_info_test
+    @skipIf(archs=no_match(["aarch64"]))
+    @skipIf(oslist=no_match(["linux"]))
+    def test_simd_registers_simd(self):
+        self.sve_simd_registers_impl(Mode.SIMD)
