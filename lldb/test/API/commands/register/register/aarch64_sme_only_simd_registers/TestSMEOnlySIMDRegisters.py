@@ -104,7 +104,10 @@ class SVESIMDRegistersTestCase(TestBase):
             value = "{" + " ".join(["0x34"]*16) + "}"
             self.runCmd(f'register write v0 "{value}"')
             self.expect('register read v0', substrs=[value])
+            sve_value = "{" + " ".join(["0x34"]*16) + " " + " ".join(["0x12"]*16) + "}"
+            self.expect('register read z0', substrs=[sve_value])
         else:
+            pass
 
 
         # self.runCmd("expression write_simd_regs(1)")
