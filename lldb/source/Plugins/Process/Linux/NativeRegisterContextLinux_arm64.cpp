@@ -576,8 +576,10 @@ Status NativeRegisterContextLinux_arm64::WriteRegister(
     } else {
       // SVE enabled, we will read and cache SVE ptrace data.
       error = ReadAllSVE();
-      if (error.Fail())
+      if (error.Fail()) {
+        printf("Failed to read SVE data\n");
         return error;
+      }
 
       // FPSR and FPCR will be located right after Z registers in
       // SVEState::FPSIMD while in SVEState::Full or SVEState::Streaming they
