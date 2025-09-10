@@ -652,12 +652,6 @@ Status NativeRegisterContextLinux_arm64::WriteRegister(
       if (GetRegisterInfo().IsSVERegVG(reg) || GetRegisterInfo().IsSVEPReg(reg) || GetRegisterInfo().IsSVERegFFR(reg))
         return Status::FromErrorString("Cannot write SVE VG, P or FFR registers while outside of streaming mode.");
 
-      // If we get here we must have a Z register. Assume we have 16 bytes aka 128
-      // bits at least, enough to fill an FP V register.
-      uint8_t v_data[16];
-      // TODO: is this the right 16 bytes?
-      ::memcpy(v_data, reg_value.GetBytes(), 16);
-
       // We have told the client that we only have Z registers and the V registers
       // are subsets of Z. This means that the V byte offsets are actually for the
       // SVE register context, which we cannot access right now. That is,
@@ -671,7 +665,9 @@ Status NativeRegisterContextLinux_arm64::WriteRegister(
       offset = z_num * 16;
       assert(offset < GetFPRSize());
       dst = (uint8_t *)GetFPRBuffer() + offset;
-      ::memcpy(dst, v_data, reg_info->byte_size);
+      // If we get here we must have a Z register. Assume we have 16 bytes aka 128
+      // bits at least, enough to fill an FP V register.
+      ::memcpy(dst, reg_value.GetBytes(), 16);
       
       printf("About to write FPR\n");
 
