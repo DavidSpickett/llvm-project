@@ -101,6 +101,8 @@ class SVESIMDRegistersTestCase(TestBase):
             simd_value = "{" + " ".join(["0x12"]*16) + "}"
             self.expect("register read v0", substrs=[simd_value])
 
+            # TODO: make sure other registers are undisturbed
+
             value = "{" + " ".join(["0x34"]*16) + "}"
             self.runCmd(f'register write v0 "{value}"')
             self.expect('register read v0', substrs=[value])
@@ -110,12 +112,25 @@ class SVESIMDRegistersTestCase(TestBase):
             # TODO: can write p register
             # TODO: can write ffr
         else:
+            v_regs = [f"v{n}" for n in range(31)]
+            v_values = ["{" + " ".join(([f"0x{n:02x}"] + ["0x00"]*7) * 2) + "}" for n in range(1, 32)]
+
+            self.expect(f'register read {" ".join(v_regs)}',
+                        substrs=                          
+                            [f"{n} = {v}" for n, v in zip(v_regs, v_values)])
+
             # In SIMD mode if we write Z0, only the parts that overlap
             # D0 should apply.
             value = "{" + " ".join(["0x12"]*32) + "}"
             self.runCmd(f'register write z0 "{value}"')
             expected_sve = "{" + " ".join(["0x12"]*16) + " " + " ".join(["0x00"]*16) + "}"
-            self.expect("register read z0", substrs=[value])
+            self.expect("register read z0", substrs=[expected_sve])
+            expected_fpr = "{" + " ".join(["0x12"]*16) + "}"
+            self.expect("register read v0", substrs=[expected_fpr])
+
+            # TODO: make sure other registers are undisturbed
+
+            # TODO: write via v0 as well?
 
             # TODO: cannot write P register
             # TODO: cannot write ffr
