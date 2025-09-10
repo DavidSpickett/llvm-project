@@ -141,17 +141,29 @@ class SVESIMDRegistersTestCase(TestBase):
             # TODO: can write ffr
         else:
             expected_registers = self.expected_registers_simd()
-            self.expect(f'register read {" ".join(expected_registers.keys())}',
-                    substrs=[f"{n} = {v}" for n, v in expected_registers.items()])
+            def check_expected_regs():
+                self.expect(f'register read {" ".join(expected_registers.keys())}',
+                        substrs=[f"{n} = {v}" for n, v in expected_registers.items()])
 
-            # In SIMD mode if we write Z0, only the parts that overlap
-            # D0 should apply.
+            check_expected_regs()
+
+            # In SIMD mode if you write Z0, only the parts that overlap V0 will
+            # change.
             value = "{" + " ".join(["0x12"]*32) + "}"
             self.runCmd(f'register write z0 "{value}"')
-            expected_sve = "{" + " ".join(["0x12"]*16) + " " + " ".join(["0x00"]*16) + "}"
-            self.expect("register read z0", substrs=[expected_sve])
-            expected_fpr = "{" + " ".join(["0x12"]*16) + "}"
-            self.expect("register read v0", substrs=[expected_fpr])
+
+            # z0 and z0 should change but nothing else. We check the rest because
+            # we are faking Z register data in this mode, and any offset mistake
+            # could lead to modifying other registers.
+            expected_registers['z0'] = "{" + " ".join(["0x12"]*16) + " " + " ".join(["0x00"]*16) + "}"
+            expected_registers['v0'] = "{" + " ".join(["0x12"]*16) + "}"
+
+            check_expected_regs() 
+
+
+            #self.expect("register read z0", substrs=[expected_sve])
+            #expected_fpr = "{" + " ".join(["0x12"]*16) + "}"
+            #self.expect("register read v0", substrs=[expected_fpr])
 
             # TODO: make sure other registers are undisturbed
 
