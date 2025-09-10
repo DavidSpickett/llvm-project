@@ -160,13 +160,6 @@ class SVESIMDRegistersTestCase(TestBase):
 
             check_expected_regs() 
 
-
-            #self.expect("register read z0", substrs=[expected_sve])
-            #expected_fpr = "{" + " ".join(["0x12"]*16) + "}"
-            #self.expect("register read v0", substrs=[expected_fpr])
-
-            # TODO: make sure other registers are undisturbed
-
             # TODO: write via v0 as well?
 
             # TODO: write to fpsr and fpcr
