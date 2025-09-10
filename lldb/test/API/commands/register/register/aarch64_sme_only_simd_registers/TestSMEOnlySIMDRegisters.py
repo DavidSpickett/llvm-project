@@ -112,12 +112,37 @@ class SVESIMDRegistersTestCase(TestBase):
             # TODO: can write p register
             # TODO: can write ffr
         else:
-            v_regs = [f"v{n}" for n in range(31)]
+            # Verify starting values.
+            v_regs = [f"v{n}" for n in range(32)]
             v_values = ["{" + " ".join(([f"0x{n:02x}"] + ["0x00"]*7) * 2) + "}" for n in range(1, 32)]
 
             self.expect(f'register read {" ".join(v_regs)}',
                         substrs=                          
                             [f"{n} = {v}" for n, v in zip(v_regs, v_values)])
+
+            # Bottom half of Z is V, rest is 0s.
+            z_regs = [f"z{n}" for n in range(32)]
+            z_values = ["{" + " ".join((([f"0x{n:02x}"] + ["0x00"]*7) * 2) + ["0x00"] * 16) + "}" for n in range(1, 32)]
+
+            self.expect(f'register read {" ".join(z_regs)}',
+                        substrs=                          
+                            [f"{n} = {v}" for n, v in zip(z_regs, z_values)])
+
+            # P registers are all 0s.
+            p_regs = [f"p{n}" for n in range(16)]
+            # TODO: proper vlen here
+            p_values = ["{" + " ".join(["0x00"]*4) + "}" for n in range(0, 16)]
+
+            self.expect(f'register read {" ".join(p_regs)}',
+                        substrs=                          
+                            [f"{n} = {v}" for n, v in zip(p_regs, p_values)])
+
+            # ffr is all 0s.
+            self.expect("register read ffr", substrs=[
+                "ffr = {0x00 0x00 0x00 0x00}"
+            ])
+
+            # TODO: initial ffr
 
             # In SIMD mode if we write Z0, only the parts that overlap
             # D0 should apply.
@@ -131,6 +156,8 @@ class SVESIMDRegistersTestCase(TestBase):
             # TODO: make sure other registers are undisturbed
 
             # TODO: write via v0 as well?
+
+            # TODO: write to fpsr and fpcr
 
             # TODO: cannot write P register
             # TODO: cannot write ffr
