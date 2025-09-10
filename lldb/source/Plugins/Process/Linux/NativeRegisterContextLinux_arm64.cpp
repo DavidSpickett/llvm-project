@@ -303,6 +303,7 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
         return error;
 
       offset = CalculateFprOffset(reg_info);
+      printf("reading %s, offset is %u\n", reg_info->name, offset);
       assert(offset < GetFPRSize());
       src = (uint8_t *)GetFPRBuffer() + offset;
     } else {
@@ -412,6 +413,11 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
 
         std::vector<uint8_t> fake_z(reg_info->byte_size, 0);
         std::memcpy(&fake_z[0], src, 16 /* 128 bits */);
+        printf("Fake Z:");
+        for (auto c : fake_z) {
+          printf(" 0x%02x", c);
+        }
+        printf("\n");
         reg_value.SetFromMemoryData(*reg_info, &fake_z[0], reg_info->byte_size,
                                       eByteOrderLittle, error);
 
@@ -561,8 +567,13 @@ Status NativeRegisterContextLinux_arm64::WriteRegister(
 
     return WriteGPR();
   } else if (IsFPR(reg)) {
-    if (m_sve_state == SVEState::Disabled) {
-      // SVE is disabled take legacy route for FPU register access
+    printf("trying to write FPR\n");
+    // TODO: not sure if this route actually works for streamingFPSIMD mode,
+    // the V register offsets are relative to their position in the SVE context,
+    // so the offset calculation does not work.
+    if (m_sve_state == SVEState::Disabled || m_sve_state == SVEState::StreamingFPSIMD) {
+      // SVE is not present, or we only have it in streaming mode, and are currently
+      // outside of streaming mode. Take legacy route for FPU register access.
       error = ReadFPR();
       if (error.Fail())
         return error;
@@ -571,6 +582,14 @@ Status NativeRegisterContextLinux_arm64::WriteRegister(
       assert(offset < GetFPRSize());
       dst = (uint8_t *)GetFPRBuffer() + offset;
       ::memcpy(dst, reg_value.GetBytes(), reg_info->byte_size);
+
+      printf("Writing this data to FPR:");
+      for (auto i=0; i<16; ++i) {
+        printf(" 0X%02x", *((uint8_t*)reg_value.GetBytes() + i));
+      }
+      printf("\n");
+
+      printf("About to write FPR\n");
 
       return WriteFPR();
     } else {
@@ -612,9 +631,75 @@ Status NativeRegisterContextLinux_arm64::WriteRegister(
       return WriteAllSVE();
     }
   } else if (IsSVE(reg)) {
-    if (m_sve_state == SVEState::Disabled || m_sve_state == SVEState::Unknown)
+    printf("Trying to write sve\n");
+    if (m_sve_state == SVEState::Disabled || m_sve_state == SVEState::Unknown) {
       return Status::FromErrorString("SVE disabled or not supported");
-    else {
+    } else if (m_sve_state == SVEState::StreamingFPSIMD) {
+      // When a target has SVE (in any state), the client is told that it has
+      // real SVE registers and that the FP registers are just subregisters
+      // of those SVE registers. This means that any FP write will be converted
+      // into an SVE write.
+      //
+      // If we get here, it did that, but we are outside of streaming mode
+      // on an SME only system. Meaning there's no way at all to write to actual
+      // SVE registers.
+      //
+      // Instead we will have to extract the bottom 128 bits of the register,
+      // write that via the standard FP route and then return the fake SVE values
+      // as usual.
+      //
+      // We can only do this for Z registers of course, P, FFR, or VG.
+      if (GetRegisterInfo().IsSVERegVG(reg) || GetRegisterInfo().IsSVEPReg(reg) || GetRegisterInfo().IsSVERegFFR(reg))
+        return Status::FromErrorString("Cannot write SVE VG, P or FFR registers while outside of streaming mode.");
+
+      // If we get here we must have a Z register. Assume we have 16 bytes aka 128
+      // bits at least, enough to fill an FP V register.
+      uint8_t v_data[16];
+      // TODO: is this the right 16 bytes?
+      ::memcpy(v_data, reg_value.GetBytes(), 16);
+
+      // We have told the client that we only have Z registers and the V registers
+      // are subsets of Z. This means that the V byte offsets are actually for the
+      // SVE register context, which we cannot access right now. That is,
+      // v0 is offset 16, v1 is 16+vlen, and so on.
+      // So we will manually patch this data into the FP context and write it.
+      error = ReadFPR();
+      if (error.Fail())
+        return error;
+
+      uint32_t z_num = reg - GetRegisterInfo().GetRegNumSVEZ0();
+      offset = z_num * 16;
+      assert(offset < GetFPRSize());
+      dst = (uint8_t *)GetFPRBuffer() + offset;
+      ::memcpy(dst, v_data, reg_info->byte_size);
+      
+      printf("About to write FPR\n");
+
+      return WriteFPR();
+
+      // // TODO: endian is probably wrong here
+      // RegisterValue v_value(llvm::ArrayRef(v_data, 16), eByteOrderLittle);
+
+      // uint32_t z_num = reg - GetRegisterInfo().GetRegNumSVEZ0();
+      // printf("z_num: %d\n", z_num);
+      // // TODO: safe? Even works???
+      // const lldb_private::RegisterInfo *fp_reg_info = GetRegisterInfo().GetRegisterInfo() + fp_reg_num;
+      // assert(fp_reg_info && "FP register info must be valid!");
+      // printf("Writing bottom part of Z register into %s\n", fp_reg_info->name);
+
+      // printf("Writing FP data: ");
+      // for (auto i =0;i<16;++i)
+      //   printf(" 0x%02x", v_data[i]);
+      // printf("\n");
+
+      // // TODO: should *any* call to writeFPR invalidate SVE?
+      // // TODO: move somewhere else? Need to force a re-read after writing FPR.
+      // m_sve_buffer_is_valid = false;
+      // // TODO: needed? safer than sorry...
+      // m_sve_header_is_valid = false;
+
+      // return WriteRegister(fp_reg_info, v_value);
+    } else {
       // Target has SVE enabled, we will read and cache SVE ptrace data
       error = ReadAllSVE();
       if (error.Fail())
@@ -1270,6 +1355,8 @@ Status NativeRegisterContextLinux_arm64::WriteGPR() {
 Status NativeRegisterContextLinux_arm64::ReadFPR() {
   Status error;
 
+  printf("ReadFPR: m_fpu_is_valid - %d\n", m_fpu_is_valid);
+
   if (m_fpu_is_valid)
     return error;
 
@@ -1297,6 +1384,19 @@ Status NativeRegisterContextLinux_arm64::WriteFPR() {
   ioVec.iov_len = GetFPRSize();
 
   m_fpu_is_valid = false;
+
+  // TODO: redundant?
+  m_sve_buffer_is_valid = false;
+  m_sve_header_is_valid = false;
+
+  printf("WriteRegisterSet NT_FPREGSET\n");
+
+  uint8_t* data = (uint8_t*)ioVec.iov_base;
+  printf("Writing this data: ");
+  for(auto i=0; i<ioVec.iov_len;++i) {
+    printf(" 0x%02x", data[i]);
+  }
+  printf("\n");
 
   return WriteRegisterSet(&ioVec, GetFPRSize(), NT_FPREGSET);
 }
@@ -1771,6 +1871,7 @@ void NativeRegisterContextLinux_arm64::ConfigureRegisterContext() {
 
 uint32_t NativeRegisterContextLinux_arm64::CalculateFprOffset(
     const RegisterInfo *reg_info) const {
+      printf("CalculateFprOffset: reg_info->byte_offset = %u GetGPRSize() = %lu", reg_info->byte_offset, GetGPRSize());
   return reg_info->byte_offset - GetGPRSize();
 }
 
