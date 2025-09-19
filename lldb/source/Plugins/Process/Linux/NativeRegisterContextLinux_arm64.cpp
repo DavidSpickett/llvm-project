@@ -302,7 +302,29 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
       if (error.Fail())
         return error;
 
-      offset = CalculateFprOffset(reg_info);
+      if (m_sve_state == SVEState::StreamingFPSIMD) {
+        // When we have SME but not SVE, outside of streaming mode, the FP registers
+        // come from the normal FP context. However, because we have told the client
+        // that we only have real SVE registers, an FP registers are just a subset
+        // of those, the offsets of the FP registers are relative to those SVE registers.
+        // We need to override that to work with the actual FP context.
+        //
+        // struct user_fpsimd_state {
+        // 	__uint128_t	vregs[32];
+        // 	__u32		fpsr;
+        // 	__u32		fpcr;
+        // 	__u32		__reserved[2];
+        // };
+        const size_t fpsr_offset = 8 * 2 * 31;
+        if (reg == GetRegisterInfo().GetRegNumFPSR())
+          offset = fpsr_offset
+        else if (reg == GetRegisterInfo().GetRegNumFPCR())
+          offset = fpsr_offset + 4
+        else
+          offset = 8 * 2 * (reg - GetRegisterInfo().GetRegNumFPV0());
+      } else {
+        offset = CalculateFprOffset(reg_info);
+      }
       printf("reading %s, offset is %u\n", reg_info->name, offset);
       assert(offset < GetFPRSize());
       src = (uint8_t *)GetFPRBuffer() + offset;
