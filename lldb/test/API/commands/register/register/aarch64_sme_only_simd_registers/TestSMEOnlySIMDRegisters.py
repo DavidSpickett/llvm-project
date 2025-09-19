@@ -120,6 +120,12 @@ class SVESIMDRegistersTestCase(TestBase):
     def get_svl_b(self):
         return self.dbg.GetSelectedTarget().GetProcess().GetSelectedThread().GetFrameAtIndex(0).FindRegister('vg').GetValueAsUnsigned() * 8
 
+    def check_expected_regs_fn(self, expected_registers):
+        def check_expected_regs():
+            self.expect(f'register read {" ".join(expected_registers.keys())}',
+                    substrs=[f"{n} = {v}" for n, v in expected_registers.items()])
+        return check_expected_regs
+
     @no_debug_info_test
     @skipIf(archs=no_match(["aarch64"]))
     @skipIf(oslist=no_match(["linux"]))
@@ -128,9 +134,7 @@ class SVESIMDRegistersTestCase(TestBase):
         svl_b = self.get_svl_b()
 
         expected_registers = self.expected_registers_streaming(svl_b)
-        def check_expected_regs():
-            self.expect(f'register read {" ".join(expected_registers.keys())}',
-                    substrs=[f"{n} = {v}" for n, v in expected_registers.items()])
+        check_expected_regs = self.check_expected_regs_fn(expected_registers)
 
         check_expected_regs()
 
@@ -189,9 +193,7 @@ class SVESIMDRegistersTestCase(TestBase):
         svl_b = self.get_svl_b()
 
         expected_registers = self.expected_registers_simd(svl_b)
-        def check_expected_regs():
-            self.expect(f'register read {" ".join(expected_registers.keys())}',
-                    substrs=[f"{n} = {v}" for n, v in expected_registers.items()])
+        check_expected_regs = self.check_expected_regs_fn(expected_registers)
 
         check_expected_regs()
 
