@@ -3,11 +3,14 @@ Check reading and writing of SIMD registers on a system that only has SME. This
 means that the "SVE" registers are only active during streaming mode.
 """
 
+# TODO: rename this to TestSMEOnlyRegisters.py
+
 from enum import Enum
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
+from itertools import cycle
 
 
 class Mode(Enum):
@@ -33,36 +36,8 @@ class SVESIMDRegistersTestCase(TestBase):
                 "SSVE registers must be supported."
             )
 
-    def make_simd_value(self, n):
-        pad = " ".join(["0x00"] * 7)
-        return "{{0x{:02x} {} 0x{:02x} {}}}".format(n, pad, n, pad)
-
-    def check_streaming_sve_values(self):
-        for i in range(32):
-            expected = "{" + " ".join([f"0x{i+1:02x}" for _ in range(32)]) + "}"
-            self.expect(f"register read z{i}", substrs=[expected])
-
-    def check_streaming_simd_values(self):
-        for i in range(32):
-            expected = "{" + " ".join([f"0x{i+1:02x}" for _ in range(16)]) + "}"
-            self.expect(f"register read v{i}", substrs=[expected])
-
-    def check_simd_simd_values(self, value_offset):
-        # These are 128 bit registers, so getting them from the API as unsigned
-        # values doesn't work. Check the command output instead.
-        for i in range(32):
-            self.expect(
-                "register read v{}".format(i),
-                substrs=[self.make_simd_value(i + value_offset)],
-            )
-
-    def check_simd_sve_values(self):
-        for i in range(32):
-            # SVE registers overlap the V registers.
-            v_reg = f"0x{i+1:02x} " + " ".join(["0x00"] * 7) + " "
-            # And the rest is fake 0s.
-            expected = "{" + v_reg + v_reg + " ".join(["0x00"] * 16) + "}"
-            self.expect(f"register read z{i}", substrs=[expected])
+    def byte_vector(self, elements):
+        return "{" + " ".join([f'0x{b:02x}' for b in elements]) + "}"
 
     def expected_registers_simd(self):
         # TODO: proper vlen here
@@ -91,6 +66,40 @@ class SVESIMDRegistersTestCase(TestBase):
 
         return dict(register_values)
 
+    def expected_registers_streaming(self):
+        # TODO: proper vlen here
+        register_values = []
+
+        # Streaming SVE registers have their elements set to their number plus 1.
+        # So z0 has elements of 0x01, z1 is 0x02 and so on.
+
+        v_regs = [f"v{n}" for n in range(32)]
+        v_values = ["{" + " ".join([f"0x{n:02x}"]*16) + "}" for n in range(1, 32)]
+        register_values += list(zip(v_regs, v_values))
+
+        register_values += [("fpsr", "0x50000015"),
+                            ("fpcr", "0x05551505")]
+
+        z_regs = [f"z{n}" for n in range(32)]
+        z_values = ["{" + " ".join([f"0x{n:02x}"]*32) + "}" for n in range(1, 32)]
+        register_values += list(zip(z_regs, z_values))
+
+        # P registers have all emlements set to the same value and that value
+        # cycles between 0xff, 0x55, 0x11, 0x01 and 0x00.
+        p_regs = [f"p{n}" for n in range(16)]
+        values = cycle([0xff, 0x55, 0x11, 0x01, 0x00]) 
+        p_values = []
+        for i in range(16):
+            value = next(values)
+            p_values.append("{" + " ".join([f'0x{value:02x}'] * 4) + "}")
+
+        register_values += list(zip(p_regs, p_values))
+
+        # ffr is all 0s.
+        register_values += [("ffr", "{0x00 0x00 0x00 0x00}")]
+
+        return dict(register_values)
+
     def sve_simd_registers_impl(self, mode):
         self.skip_if_needed(mode)
 
@@ -111,33 +120,64 @@ class SVESIMDRegistersTestCase(TestBase):
             substrs=["stop reason = breakpoint 1."],
         )
 
-        #if mode == Mode.SSVE:
-        #    self.check_streaming_sve_values()
-        #    self.check_streaming_simd_values()
-        #else:
-        #    self.check_simd_simd_values(1)
-        #    self.check_simd_sve_values()
-
-        # Writes to SVE should change SIMD and vice versa
         if mode == Mode.SSVE:
+            # Writes to SVE should change SIMD and vice versa. Writes will be done
+            # via. the streaming SVE register set.
             # TODO: pass actual vlen around here
-            value = "{" + " ".join(["0x12"]*32) + "}"
-            self.runCmd(f'register write z0 "{value}"')
-            # TODO: get application to verify these writes too?
-            self.expect("register read z0", substrs=[value])
-            simd_value = "{" + " ".join(["0x12"]*16) + "}"
-            self.expect("register read v0", substrs=[simd_value])
 
-            # TODO: make sure other registers are undisturbed
+            expected_registers = self.expected_registers_streaming()
+            def check_expected_regs():
+                self.expect(f'register read {" ".join(expected_registers.keys())}',
+                        substrs=[f"{n} = {v}" for n, v in expected_registers.items()])
 
-            value = "{" + " ".join(["0x34"]*16) + "}"
-            self.runCmd(f'register write v0 "{value}"')
-            self.expect('register read v0', substrs=[value])
-            sve_value = "{" + " ".join(["0x34"]*16) + " " + " ".join(["0x12"]*16) + "}"
-            self.expect('register read z0', substrs=[sve_value])
+            check_expected_regs()
 
-            # TODO: can write p register
-            # TODO: can write ffr
+            # Write via Z0
+            z_value = self.byte_vector([0x12]*32)
+            self.runCmd(f'register write z0 "{z_value}"')
+
+            # z0 and z0 should change but nothing else.
+            expected_registers['z0'] = z_value
+            expected_registers['v0'] = self.byte_vector([0x12]*16) 
+
+            check_expected_regs()
+
+            # We can do the same via a V register, the value will be extended and sent as
+            # a Z write.
+            v_value = self.byte_vector([0x34]*16)
+            self.runCmd(f'register write v1 "{v_value}"')
+
+            # The lower half of z1 is the v value, the upper part is the 0x2 that was previously in there.
+            expected_registers['z1'] = self.byte_vector([0x34]*16 + [0x02]*16)
+            expected_registers['v1'] = v_value 
+
+            check_expected_regs()
+
+            # Even though you can't set all these bits in reality, until we do
+            # a step, it'll seem like we did.
+            fpcontrol = "0xaaaaaaaa"
+
+            self.runCmd(f'register write fpsr {fpcontrol}')
+            expected_registers['fpsr'] = fpcontrol
+
+            check_expected_regs()
+
+            self.runCmd(f'register write fpcr {fpcontrol}')
+            expected_registers['fpcr'] = fpcontrol
+
+            check_expected_regs()
+
+            p_value = self.byte_vector([0x12, 0x34, 0x56, 0x78])
+            self.expect(f'register write p0 "{p_value}"')
+            expected_registers['p0'] = p_value
+
+            check_expected_regs()
+
+            ffr_value = self.byte_vector([0x78, 0x56, 0x34, 0x12])
+            self.expect(f'register write ffr "{ffr_value}"')
+            expected_registers['ffr'] = ffr_value
+            
+            check_expected_regs()
         else:
             expected_registers = self.expected_registers_simd()
             def check_expected_regs():
@@ -196,30 +236,14 @@ class SVESIMDRegistersTestCase(TestBase):
             
             check_expected_regs()
 
-        # self.runCmd("expression write_simd_regs(1)")
-        # self.check_simd_values(0)
-
-        # # Write a new set of values. The kernel will move the program back to
-        # # non-streaming mode here.
-        # for i in range(32):
-        #     self.runCmd(
-        #         'register write v{} "{}"'.format(i, self.make_simd_value(i + 1))
-        #     )
-
-        # # Should be visible within lldb.
-        # self.check_simd_values(1)
-
-        # # The program should agree with lldb.
-        # self.expect("continue", substrs=["exited with status = 0"])
+    @no_debug_info_test
+    @skipIf(archs=no_match(["aarch64"]))
+    @skipIf(oslist=no_match(["linux"]))
+    def test_simd_registers_ssve(self):
+        self.sve_simd_registers_impl(Mode.SSVE)
 
     # @no_debug_info_test
     # @skipIf(archs=no_match(["aarch64"]))
     # @skipIf(oslist=no_match(["linux"]))
-    # def test_simd_registers_ssve(self):
-    #     self.sve_simd_registers_impl(Mode.SSVE)
-
-    @no_debug_info_test
-    @skipIf(archs=no_match(["aarch64"]))
-    @skipIf(oslist=no_match(["linux"]))
-    def test_simd_registers_simd(self):
-        self.sve_simd_registers_impl(Mode.SIMD)
+    # def test_simd_registers_simd(self):
+    #     self.sve_simd_registers_impl(Mode.SIMD)
