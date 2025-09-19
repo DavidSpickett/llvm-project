@@ -187,8 +187,14 @@ class SVESIMDRegistersTestCase(TestBase):
 
             check_expected_regs()
 
-            # TODO: cannot write P register
-            # TODO: cannot write ffr
+            # We are faking SVE registers while outside of streaming mode, and
+            # predicate registers and ffr have no real register to overlay.
+            # We chose to make this an error instead of eating the write silently.
+
+            self.expect('register write p0 "{0x12 0x34 0x56 0x78}"', error=True)
+            self.expect('register write ffr "{0x78 0x56 0x34 0x12}"', error=True)
+            
+            check_expected_regs()
 
         # self.runCmd("expression write_simd_regs(1)")
         # self.check_simd_values(0)
