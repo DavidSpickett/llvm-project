@@ -315,7 +315,7 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
         // 	__u32		fpcr;
         // 	__u32		__reserved[2];
         // };
-        const size_t fpsr_offset = 8 * 2 * 31;
+        const size_t fpsr_offset = 8 * 2 * 32;
         if (reg == GetRegisterInfo().GetRegNumFPSR())
           offset = fpsr_offset;
         else if (reg == GetRegisterInfo().GetRegNumFPCR())
