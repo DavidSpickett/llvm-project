@@ -159,9 +159,33 @@ class SVESIMDRegistersTestCase(TestBase):
 
             check_expected_regs() 
 
-            # TODO: write via v0 as well?
+            # We can do the same via a V register, the value will be extended and sent as
+            # a Z write.
+            value = "{" + " ".join(["0x34"]*16) + "}"
+            self.runCmd(f'register write v1 "{value}"')
 
-            # TODO: write to fpsr and fpcr
+            expected_registers['z1'] = "{" + " ".join(["0x34"]*16) + " " + " ".join(["0x00"]*16) + "}"
+            expected_registers['v1'] = "{" + " ".join(["0x34"]*16) + "}"
+
+            check_expected_regs()
+
+            # FPSR and FPCR are still described as real registers, so they are
+            # sent as normal writes.
+            # Even though you can't set all these bits in reality, until we do
+            # a step, it'll seem like we did.
+            fpcontrol = "0xaaaaaaaa"
+
+            # First FPSR on its own.
+            self.runCmd(f'register write fpsr {fpcontrol}')
+            expected_registers['fpsr'] = fpcontrol
+
+            check_expected_regs()
+
+            # Then FPCR.
+            self.runCmd(f'register write fpcr {fpcontrol}')
+            expected_registers['fpcr'] = fpcontrol
+
+            check_expected_regs()
 
             # TODO: cannot write P register
             # TODO: cannot write ffr
