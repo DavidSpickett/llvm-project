@@ -118,8 +118,7 @@ class SVESIMDRegistersTestCase(TestBase):
         )
 
     def get_svl_b(self):
-        target = self.dbg.GetSelectedTarget()
-        return target.GetProcess().GetSelectedThread().GetFrameAtIndex(0).FindRegister('vg').GetValueAsUnsigned() * 8
+        return self.dbg.GetSelectedTarget().GetProcess().GetSelectedThread().GetFrameAtIndex(0).FindRegister('vg').GetValueAsUnsigned() * 8
 
     @no_debug_info_test
     @skipIf(archs=no_match(["aarch64"]))
@@ -136,7 +135,7 @@ class SVESIMDRegistersTestCase(TestBase):
         check_expected_regs()
 
         # Write via Z0
-        z_value = self.byte_vector([0x12]*32)
+        z_value = self.byte_vector([0x12]*svl_b)
         self.runCmd(f'register write z0 "{z_value}"')
 
         # z0 and v0 should change but nothing else.
@@ -151,7 +150,7 @@ class SVESIMDRegistersTestCase(TestBase):
         self.runCmd(f'register write v1 "{v_value}"')
 
         # The lower half of z1 is the v value, the upper part is the 0x2 that was previously in there.
-        expected_registers['z1'] = self.byte_vector([0x34]*16 + [0x02]*16)
+        expected_registers['z1'] = self.byte_vector([0x34]*16 + [0x02]*(svl_b - 16))
         expected_registers['v1'] = v_value 
 
         check_expected_regs()
@@ -170,13 +169,13 @@ class SVESIMDRegistersTestCase(TestBase):
 
         check_expected_regs()
 
-        p_value = self.byte_vector([0x12, 0x34, 0x56, 0x78])
+        p_value = self.byte_vector([0x65] * (svl_b // 8))
         self.expect(f'register write p0 "{p_value}"')
         expected_registers['p0'] = p_value
 
         check_expected_regs()
 
-        ffr_value = self.byte_vector([0x78, 0x56, 0x34, 0x12])
+        ffr_value = self.byte_vector([0x78] * (svl_b // 8))
         self.expect(f'register write ffr "{ffr_value}"')
         expected_registers['ffr'] = ffr_value
         
@@ -198,13 +197,13 @@ class SVESIMDRegistersTestCase(TestBase):
 
         # In SIMD mode if you write Z0, only the parts that overlap V0 will
         # change.
-        z_value = self.byte_vector([0x12]*32)
+        z_value = self.byte_vector([0x12]*svl_b)
         self.runCmd(f'register write z0 "{z_value}"')
 
         # z0 and z0 should change but nothing else. We check the rest because
         # we are faking Z register data in this mode, and any offset mistake
         # could lead to modifying other registers.
-        expected_registers['z0'] = self.byte_vector([0x12]*16 + [0x00]*16)
+        expected_registers['z0'] = self.byte_vector([0x12]*16 + [0x00]*(svl_b - 16))
         expected_registers['v0'] = self.byte_vector([0x12]*16)
 
         check_expected_regs()
@@ -214,7 +213,7 @@ class SVESIMDRegistersTestCase(TestBase):
         v_value = self.byte_vector([0x34]*16)
         self.runCmd(f'register write v1 "{v_value}"')
 
-        expected_registers['z1'] = self.byte_vector([0x34]*16 + [0x00]*16)
+        expected_registers['z1'] = self.byte_vector([0x34]*16 + [0x00]*(svl_b - 16))
         expected_registers['v1'] = v_value
 
         check_expected_regs()
@@ -241,7 +240,7 @@ class SVESIMDRegistersTestCase(TestBase):
         # predicate registers and ffr have no real register to overlay.
         # We chose to make this an error instead of eating the write silently.
 
-        value = self.byte_vector([0x12, 0x34, 0x56, 0x78])
+        value = self.byte_vector([0x98]*(svl_b // 8))
         self.expect(f'register write p0 "{value}"', error=True)
         check_expected_regs()
         self.expect(f'register write ffr "{value}"', error=True)
