@@ -46,22 +46,24 @@ class SVESIMDRegistersTestCase(TestBase):
         # TODO: proper vlen here
         register_values = []
 
-        # V regs are {N <7 0s> N <7 0s>}
+        # V regs are {N <7 0s> N <7 0s>} because we set the bottom element to N.
         v_values = ["{" + " ".join(([f"0x{n:02x}"] + ["0x00"]*7) * 2) + "}" for n in range(1, 32)]
         register_values += list(zip(self.reg_names('v', 32), v_values))
 
         register_values += [("fpsr", "0x50000015"),
                             ("fpcr", "0x05551505")]
 
-        # Z regs are {N <7 0s> N <7 0s> <16 more 0s}
+        # Z regs are {N <7 0s> N <7 0s> <16 more 0s}. First half overlaps a V
+        # register, the second half we fake 0s for as there is no real Z register
+        # in non-streaming mode.
         z_values = ["{" + " ".join((([f"0x{n:02x}"] + ["0x00"]*7) * 2) + ["0x00"] * 16) + "}" for n in range(1, 32)]
         register_values += list(zip(self.reg_names('z', 32), z_values))
 
-        # P regs are {<4 0s>}
+        # P regs are {<4 0s>}, we fake the value.
         p_values = ["{" + " ".join(["0x00"]*4) + "}" for n in range(0, 16)]
         register_values += list(zip(self.reg_names('p', 15), p_values))
 
-        # ffr is all 0s.
+        # ffr is all 0s, again a fake value.
         register_values += [("ffr", "{0x00 0x00 0x00 0x00}")]
 
         return dict(register_values)
@@ -73,27 +75,22 @@ class SVESIMDRegistersTestCase(TestBase):
         # Streaming SVE registers have their elements set to their number plus 1.
         # So z0 has elements of 0x01, z1 is 0x02 and so on.
 
-        v_regs = [f"v{n}" for n in range(32)]
         v_values = ["{" + " ".join([f"0x{n:02x}"]*16) + "}" for n in range(1, 32)]
-        register_values += list(zip(v_regs, v_values))
+        register_values += list(zip(self.reg_names('v', 32), v_values))
 
         register_values += [("fpsr", "0x50000015"),
                             ("fpcr", "0x05551505")]
 
-        z_regs = [f"z{n}" for n in range(32)]
         z_values = ["{" + " ".join([f"0x{n:02x}"]*32) + "}" for n in range(1, 32)]
-        register_values += list(zip(z_regs, z_values))
+        register_values += list(zip(self.reg_names('z', 32), z_values))
 
         # P registers have all emlements set to the same value and that value
         # cycles between 0xff, 0x55, 0x11, 0x01 and 0x00.
-        p_regs = [f"p{n}" for n in range(16)]
-        values = cycle([0xff, 0x55, 0x11, 0x01, 0x00]) 
         p_values = []
-        for i in range(16):
-            value = next(values)
-            p_values.append("{" + " ".join([f'0x{value:02x}'] * 4) + "}")
+        for i, v in zip(range(16), cycle([0xff, 0x55, 0x11, 0x01, 0x00])):
+            p_values.append("{" + " ".join([f'0x{v:02x}'] * 4) + "}")
 
-        register_values += list(zip(p_regs, p_values))
+        register_values += list(zip(self.reg_names('p', 15), p_values))
 
         # ffr is all 0s.
         register_values += [("ffr", "{0x00 0x00 0x00 0x00}")]
@@ -237,11 +234,11 @@ class SVESIMDRegistersTestCase(TestBase):
             self.expect(f'register write ffr "{value}"', error=True)
             check_expected_regs()
 
-    # @no_debug_info_test
-    # @skipIf(archs=no_match(["aarch64"]))
-    # @skipIf(oslist=no_match(["linux"]))
-    # def test_simd_registers_ssve(self):
-    #     self.sve_simd_registers_impl(Mode.SSVE)
+    @no_debug_info_test
+    @skipIf(archs=no_match(["aarch64"]))
+    @skipIf(oslist=no_match(["linux"]))
+    def test_simd_registers_ssve(self):
+        self.sve_simd_registers_impl(Mode.SSVE)
 
     @no_debug_info_test
     @skipIf(archs=no_match(["aarch64"]))
