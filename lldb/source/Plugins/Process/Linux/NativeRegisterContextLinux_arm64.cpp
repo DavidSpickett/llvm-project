@@ -317,14 +317,16 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
         // };
         const size_t fpsr_offset = 8 * 2 * 31;
         if (reg == GetRegisterInfo().GetRegNumFPSR())
-          offset = fpsr_offset
+          offset = fpsr_offset;
         else if (reg == GetRegisterInfo().GetRegNumFPCR())
-          offset = fpsr_offset + 4
+          offset = fpsr_offset + 4;
         else
           offset = 8 * 2 * (reg - GetRegisterInfo().GetRegNumFPV0());
       } else {
+        // When we just have an FPU, register offsets are relative to the FPU regset.
         offset = CalculateFprOffset(reg_info);
       }
+
       printf("reading %s, offset is %u\n", reg_info->name, offset);
       assert(offset < GetFPRSize());
       src = (uint8_t *)GetFPRBuffer() + offset;
