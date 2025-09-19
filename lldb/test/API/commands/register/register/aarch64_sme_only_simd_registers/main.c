@@ -63,10 +63,14 @@ static void write_sve_regs() {
   asm volatile("cpy  z29.b, p5/z, #30\n\t");
   asm volatile("cpy  z30.b, p10/z, #31\n\t");
   asm volatile("cpy  z31.b, p15/z, #32\n\t");
+  
+  write_fp_control();
 }
 
-// base is added to each value. If base = 2, then v0 = 2, v1 = 3, etc.
-static void write_simd_regs(unsigned base) {
+static void write_simd_regs() {
+  // base is added to each value. If base = 1, then v0 = 1, v1 = 2, etc.
+  unsigned base = 1;
+
 #define WRITE_SIMD(NUM)                                                        \
   asm volatile("MOV v" #NUM ".d[0], %0\n\t"                                    \
                "MOV v" #NUM ".d[1], %0\n\t" ::"r"((uint64_t)(base + NUM)))
@@ -103,16 +107,37 @@ static void write_simd_regs(unsigned base) {
   WRITE_SIMD(29);
   WRITE_SIMD(30);
   WRITE_SIMD(31);
+  
+  write_fp_control();
+}
+
+#define SM_INST(c) asm volatile("msr s0_3_c4_c" #c "_3, xzr")
+#define SMSTART SM_INST(7)
+#define SMSTART_SM SM_INST(3)
+#define SMSTART_ZA SM_INST(5)
+#define SMSTOP SM_INST(6)
+#define SMSTOP_SM SM_INST(2)
+#define SMSTOP_ZA SM_INST(4)
+
+// TODO: test re-entering streaming mode with ZA enabled and disabled?
+
+void expr_enter_streaming_mode() {
+  SMSTART;
+  write_sve_regs();
+}
+
+void expr_exit_streaming_mode() {
+  SMSTOP;
+  write_simd_regs();
 }
 
 int main() {
 #ifdef SSVE
-  asm volatile("msr  s0_3_c4_c7_3, xzr" /*smstart*/);
+  SMSTART;
   write_sve_regs();
 #else
-  write_simd_regs(1);
+  write_simd_regs();
 #endif
-  write_fp_control();
 
   return 0; // Set a break point here.
 }
