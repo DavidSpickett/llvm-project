@@ -94,6 +94,13 @@ void write_simd_regs(unsigned base) {
   WRITE_SIMD(29);
   WRITE_SIMD(30);
   WRITE_SIMD(31);
+
+  // TODO: write these in streaming mode too
+  // Some of these bits won't get set, this is fine. Just needs to be recongisable
+  // from inside the debugger.
+  uint64_t val = 0x5555555555555555ULL;
+  asm volatile ("msr fpcr, %0" :: "r"(val));
+  asm volatile ("msr fpsr, %0" :: "r"(val));
 }
 
 int main() {

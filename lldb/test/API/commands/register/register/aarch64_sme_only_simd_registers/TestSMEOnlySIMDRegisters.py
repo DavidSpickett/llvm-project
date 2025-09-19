@@ -73,9 +73,8 @@ class SVESIMDRegistersTestCase(TestBase):
         v_values = ["{" + " ".join(([f"0x{n:02x}"] + ["0x00"]*7) * 2) + "}" for n in range(1, 32)]
         register_values += list(zip(v_regs, v_values))
 
-        # TODO: set these, might change between systems
-        register_values += [("fpsr", "0x00000001"),
-                            ("fpcr", "0x00000000")]
+        register_values += [("fpsr", "0x50000015"),
+                            ("fpcr", "0x05551505")]
 
         # Z regs are {N <7 0s> N <7 0s> <16 more 0s}
         z_regs = [f"z{n}" for n in range(32)]
