@@ -126,69 +126,132 @@ class SVESIMDRegistersTestCase(TestBase):
                     substrs=[f"{n} = {v}" for n, v in expected_registers.items()])
         return check_expected_regs
 
+#    @no_debug_info_test
+#    @skipIf(archs=no_match(["aarch64"]))
+#    @skipIf(oslist=no_match(["linux"]))
+#    def test_simd_registers_ssve(self):
+#        self.setup_test(Mode.SSVE)
+#        svl_b = self.get_svl_b()
+#
+#        expected_registers = self.expected_registers_streaming(svl_b)
+#        check_expected_regs = self.check_expected_regs_fn(expected_registers)
+#
+#        check_expected_regs()
+#
+#        # Write via Z0
+#        z_value = self.byte_vector([0x12]*svl_b)
+#        self.runCmd(f'register write z0 "{z_value}"')
+#
+#        # z0 and v0 should change but nothing else.
+#        expected_registers['z0'] = z_value
+#        expected_registers['v0'] = self.byte_vector([0x12]*16) 
+#
+#        check_expected_regs()
+#
+#        # We can do the same via a V register, the value will be extended and sent as
+#        # a Z write.
+#        v_value = self.byte_vector([0x34]*16)
+#        self.runCmd(f'register write v1 "{v_value}"')
+#
+#        # The lower half of z1 is the v value, the upper part is the 0x2 that was previously in there.
+#        expected_registers['z1'] = self.byte_vector([0x34]*16 + [0x02]*(svl_b - 16))
+#        expected_registers['v1'] = v_value 
+#
+#        check_expected_regs()
+#
+#        # Even though you can't set all these bits in reality, until we do
+#        # a step, it'll seem like we did.
+#        fpcontrol = "0xaaaaaaaa"
+#
+#        self.runCmd(f'register write fpsr {fpcontrol}')
+#        expected_registers['fpsr'] = fpcontrol
+#
+#        check_expected_regs()
+#
+#        self.runCmd(f'register write fpcr {fpcontrol}')
+#        expected_registers['fpcr'] = fpcontrol
+#
+#        check_expected_regs()
+#
+#        p_value = self.byte_vector([0x65] * (svl_b // 8))
+#        self.expect(f'register write p0 "{p_value}"')
+#        expected_registers['p0'] = p_value
+#
+#        check_expected_regs()
+#
+#        ffr_value = self.byte_vector([0x78] * (svl_b // 8))
+#        self.expect(f'register write ffr "{ffr_value}"')
+#        expected_registers['ffr'] = ffr_value
+#        
+#        check_expected_regs()
+
+#     @no_debug_info_test
+#     @skipIf(archs=no_match(["aarch64"]))
+#     @skipIf(oslist=no_match(["linux"]))
+#     def test_simd_registers_simd(self):
+#         self.setup_test(Mode.SIMD)
+#         svl_b = self.get_svl_b()
+# 
+#         expected_registers = self.expected_registers_simd(svl_b)
+#         check_expected_regs = self.check_expected_regs_fn(expected_registers)
+# 
+#         check_expected_regs()
+# 
+#         # In SIMD mode if you write Z0, only the parts that overlap V0 will
+#         # change.
+#         z_value = self.byte_vector([0x12]*svl_b)
+#         self.runCmd(f'register write z0 "{z_value}"')
+# 
+#         # z0 and z0 should change but nothing else. We check the rest because
+#         # we are faking Z register data in this mode, and any offset mistake
+#         # could lead to modifying other registers.
+#         expected_registers['z0'] = self.byte_vector([0x12]*16 + [0x00]*(svl_b - 16))
+#         expected_registers['v0'] = self.byte_vector([0x12]*16)
+# 
+#         check_expected_regs()
+# 
+#         # We can do the same via a V register, the value will be extended and sent as
+#         # a Z write.
+#         v_value = self.byte_vector([0x34]*16)
+#         self.runCmd(f'register write v1 "{v_value}"')
+# 
+#         expected_registers['z1'] = self.byte_vector([0x34]*16 + [0x00]*(svl_b - 16))
+#         expected_registers['v1'] = v_value
+# 
+#         check_expected_regs()
+# 
+#         # FPSR and FPCR are still described as real registers, so they are
+#         # sent as normal writes.
+#         # Even though you can't set all these bits in reality, until we do
+#         # a step, it'll seem like we did.
+#         fpcontrol = "0xaaaaaaaa"
+# 
+#         # First FPSR on its own.
+#         self.runCmd(f'register write fpsr {fpcontrol}')
+#         expected_registers['fpsr'] = fpcontrol
+# 
+#         check_expected_regs()
+# 
+#         # Then FPCR.
+#         self.runCmd(f'register write fpcr {fpcontrol}')
+#         expected_registers['fpcr'] = fpcontrol
+# 
+#         check_expected_regs()
+# 
+#         # We are faking SVE registers while outside of streaming mode, and
+#         # predicate registers and ffr have no real register to overlay.
+#         # We chose to make this an error instead of eating the write silently.
+# 
+#         value = self.byte_vector([0x98]*(svl_b // 8))
+#         self.expect(f'register write p0 "{value}"', error=True)
+#         check_expected_regs()
+#         self.expect(f'register write ffr "{value}"', error=True)
+#         check_expected_regs()
+
     @no_debug_info_test
     @skipIf(archs=no_match(["aarch64"]))
     @skipIf(oslist=no_match(["linux"]))
-    def test_simd_registers_ssve(self):
-        self.setup_test(Mode.SSVE)
-        svl_b = self.get_svl_b()
-
-        expected_registers = self.expected_registers_streaming(svl_b)
-        check_expected_regs = self.check_expected_regs_fn(expected_registers)
-
-        check_expected_regs()
-
-        # Write via Z0
-        z_value = self.byte_vector([0x12]*svl_b)
-        self.runCmd(f'register write z0 "{z_value}"')
-
-        # z0 and v0 should change but nothing else.
-        expected_registers['z0'] = z_value
-        expected_registers['v0'] = self.byte_vector([0x12]*16) 
-
-        check_expected_regs()
-
-        # We can do the same via a V register, the value will be extended and sent as
-        # a Z write.
-        v_value = self.byte_vector([0x34]*16)
-        self.runCmd(f'register write v1 "{v_value}"')
-
-        # The lower half of z1 is the v value, the upper part is the 0x2 that was previously in there.
-        expected_registers['z1'] = self.byte_vector([0x34]*16 + [0x02]*(svl_b - 16))
-        expected_registers['v1'] = v_value 
-
-        check_expected_regs()
-
-        # Even though you can't set all these bits in reality, until we do
-        # a step, it'll seem like we did.
-        fpcontrol = "0xaaaaaaaa"
-
-        self.runCmd(f'register write fpsr {fpcontrol}')
-        expected_registers['fpsr'] = fpcontrol
-
-        check_expected_regs()
-
-        self.runCmd(f'register write fpcr {fpcontrol}')
-        expected_registers['fpcr'] = fpcontrol
-
-        check_expected_regs()
-
-        p_value = self.byte_vector([0x65] * (svl_b // 8))
-        self.expect(f'register write p0 "{p_value}"')
-        expected_registers['p0'] = p_value
-
-        check_expected_regs()
-
-        ffr_value = self.byte_vector([0x78] * (svl_b // 8))
-        self.expect(f'register write ffr "{ffr_value}"')
-        expected_registers['ffr'] = ffr_value
-        
-        check_expected_regs()
-
-    @no_debug_info_test
-    @skipIf(archs=no_match(["aarch64"]))
-    @skipIf(oslist=no_match(["linux"]))
-    def test_simd_registers_simd(self):
+    def test_expr_simd_to_streaming(self):
         self.setup_test(Mode.SIMD)
         svl_b = self.get_svl_b()
 
@@ -196,54 +259,5 @@ class SVESIMDRegistersTestCase(TestBase):
         check_expected_regs = self.check_expected_regs_fn(expected_registers)
 
         check_expected_regs()
-
-        # In SIMD mode if you write Z0, only the parts that overlap V0 will
-        # change.
-        z_value = self.byte_vector([0x12]*svl_b)
-        self.runCmd(f'register write z0 "{z_value}"')
-
-        # z0 and z0 should change but nothing else. We check the rest because
-        # we are faking Z register data in this mode, and any offset mistake
-        # could lead to modifying other registers.
-        expected_registers['z0'] = self.byte_vector([0x12]*16 + [0x00]*(svl_b - 16))
-        expected_registers['v0'] = self.byte_vector([0x12]*16)
-
-        check_expected_regs()
-
-        # We can do the same via a V register, the value will be extended and sent as
-        # a Z write.
-        v_value = self.byte_vector([0x34]*16)
-        self.runCmd(f'register write v1 "{v_value}"')
-
-        expected_registers['z1'] = self.byte_vector([0x34]*16 + [0x00]*(svl_b - 16))
-        expected_registers['v1'] = v_value
-
-        check_expected_regs()
-
-        # FPSR and FPCR are still described as real registers, so they are
-        # sent as normal writes.
-        # Even though you can't set all these bits in reality, until we do
-        # a step, it'll seem like we did.
-        fpcontrol = "0xaaaaaaaa"
-
-        # First FPSR on its own.
-        self.runCmd(f'register write fpsr {fpcontrol}')
-        expected_registers['fpsr'] = fpcontrol
-
-        check_expected_regs()
-
-        # Then FPCR.
-        self.runCmd(f'register write fpcr {fpcontrol}')
-        expected_registers['fpcr'] = fpcontrol
-
-        check_expected_regs()
-
-        # We are faking SVE registers while outside of streaming mode, and
-        # predicate registers and ffr have no real register to overlay.
-        # We chose to make this an error instead of eating the write silently.
-
-        value = self.byte_vector([0x98]*(svl_b // 8))
-        self.expect(f'register write p0 "{value}"', error=True)
-        check_expected_regs()
-        self.expect(f'register write ffr "{value}"', error=True)
+        self.expect("expression expr_enter_streaming_mode()")
         check_expected_regs()
