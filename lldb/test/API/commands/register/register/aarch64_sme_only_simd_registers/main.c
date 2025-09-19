@@ -1,10 +1,19 @@
 #include <stdint.h>
 #include <sys/prctl.h>
 
-void write_sve_regs() {
-  // We assume the smefa64 feature is present, which allows ffr access
-  // in streaming mode.
-  //asm volatile("setffr\n\t"); // TODO: can't do this in streaming only SME.
+static void write_fp_control() {
+  // Some of these bits won't get set, this is fine. Just needs to be recongisable
+  // from inside the debugger.
+  uint64_t val = 0x5555555555555555ULL;
+  asm volatile ("msr fpcr, %0" :: "r"(val));
+  asm volatile ("msr fpsr, %0" :: "r"(val));
+}
+
+static void write_sve_regs() {
+  // We do not explicitly set ffr here because doing so requires the smefa64
+  // extension. To have that extension you have to have SVE outside of streaming
+  // mode which we do not have.
+
   asm volatile("ptrue p0.b\n\t");
   asm volatile("ptrue p1.h\n\t");
   asm volatile("ptrue p2.s\n\t");
@@ -57,7 +66,7 @@ void write_sve_regs() {
 }
 
 // base is added to each value. If base = 2, then v0 = 2, v1 = 3, etc.
-void write_simd_regs(unsigned base) {
+static void write_simd_regs(unsigned base) {
 #define WRITE_SIMD(NUM)                                                        \
   asm volatile("MOV v" #NUM ".d[0], %0\n\t"                                    \
                "MOV v" #NUM ".d[1], %0\n\t" ::"r"((uint64_t)(base + NUM)))
@@ -94,13 +103,6 @@ void write_simd_regs(unsigned base) {
   WRITE_SIMD(29);
   WRITE_SIMD(30);
   WRITE_SIMD(31);
-
-  // TODO: write these in streaming mode too
-  // Some of these bits won't get set, this is fine. Just needs to be recongisable
-  // from inside the debugger.
-  uint64_t val = 0x5555555555555555ULL;
-  asm volatile ("msr fpcr, %0" :: "r"(val));
-  asm volatile ("msr fpsr, %0" :: "r"(val));
 }
 
 int main() {
@@ -108,14 +110,9 @@ int main() {
   asm volatile("msr  s0_3_c4_c7_3, xzr" /*smstart*/);
   write_sve_regs();
 #else
-  // When we have only SME, you cannot have SMEFA64, because you do not have
-  // SVE2 and therefore we cannot use these instructions in streaming mode.
   write_simd_regs(1);
 #endif
-  // else test SIMD access in non-streaming mode.
-
-
-  //return verify_simd_regs(); // Set a break point here.
+  write_fp_control();
 
   return 0; // Set a break point here.
 }
