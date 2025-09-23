@@ -6,6 +6,11 @@
 #define PR_SME_GET_VL 64
 #endif
 
+// Doing a syscall exits streaming mode, but we need to use this during an
+// expression in streaming mode. So it's set by main and we reference this
+// later.
+int svl_b = 0;
+
 static void write_fp_control() {
   // Some of these bits won't get set, this is fine. Just needs to be recongisable
   // from inside the debugger.
@@ -164,6 +169,7 @@ static void write_simd_regs() {
 void expr_enter_streaming_mode() {
   SMSTART;
   write_sve_regs();
+  write_sme_regs(svl_b);
 }
 
 void expr_exit_streaming_mode() {
@@ -174,7 +180,7 @@ void expr_exit_streaming_mode() {
 int main() {
 #ifdef SSVE
   // Get SVL first because doing a syscall makes you exit streaming mode.
-  int svl_b = prctl(PR_SME_GET_VL); 
+  svl_b = prctl(PR_SME_GET_VL); 
   SMSTART;
   write_sve_regs();
   write_sme_regs(svl_b);
