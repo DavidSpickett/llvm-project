@@ -1,5 +1,10 @@
 #include <stdint.h>
+#include <string.h>
 #include <sys/prctl.h>
+
+#ifndef PR_SME_GET_VL
+#define PR_SME_GET_VL 64
+#endif
 
 static void write_fp_control() {
   // Some of these bits won't get set, this is fine. Just needs to be recongisable
@@ -65,6 +70,41 @@ static void write_sve_regs() {
   asm volatile("cpy  z31.b, p15/z, #32\n\t");
   
   write_fp_control();
+}
+
+static void write_sme_regs(int svl_b) {
+  uint8_t value_offset = 1;
+
+#define MAX_VL_BYTES 256
+  uint8_t data[MAX_VL_BYTES];
+
+  // ldr za will actually wrap the selected vector row, by the number of rows
+  // you have. So setting one that didn't exist would actually set one that did.
+  // That's why we need the streaming vector length here.
+  for (int i = 0; i < svl_b; ++i) {
+    // Glibc's memset uses instructions not allowed in streaming mode, so we
+    // do this, and make sure it's not optimised into memset.
+    for (unsigned j = 0; j < MAX_VL_BYTES; ++j)
+      data[j] = j + value_offset;
+
+    // Each one of these loads a VL sized row of ZA.
+    asm volatile("mov w12, %w0\n\t"
+                 "ldr za[w12, 0], [%1]\n\t" ::"r"(i),
+                 "r"(&data)
+                 : "w12");
+  }
+#undef MAX_VL_BYTES
+
+  // TODO: detect this
+  /*if (has_zt0)*/ {
+#define ZTO_LEN (512 / 8)
+    uint8_t data[ZTO_LEN];
+    for (unsigned i = 0; i < ZTO_LEN; ++i)
+      data[i] = i + value_offset;
+
+    asm volatile("ldr zt0, [%0]" ::"r"(&data));
+#undef ZT0_LEN
+  }
 }
 
 static void write_simd_regs() {
@@ -133,10 +173,14 @@ void expr_exit_streaming_mode() {
 
 int main() {
 #ifdef SSVE
+  // Get SVL first because doing a syscall makes you exit streaming mode.
+  int svl_b = prctl(PR_SME_GET_VL); 
   SMSTART;
   write_sve_regs();
+  write_sme_regs(svl_b);
 #else
   write_simd_regs();
+  // TODO: what about an active ZA outside of streaming mode?
 #endif
 
   return 0; // Set a break point here.
