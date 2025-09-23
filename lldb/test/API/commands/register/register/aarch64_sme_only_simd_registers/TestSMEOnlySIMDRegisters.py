@@ -20,7 +20,10 @@ class Mode(Enum):
 
 class SVESIMDRegistersTestCase(TestBase):
     def get_build_flags(self, mode):
-        cflags = "-march=armv8-a+sve"
+        # TODO: put these in the makefile instead
+        # The memset provided by glibc may use instructions we cannot use in
+        # streaming mode.
+        cflags = "-march=armv8-a+sve+sme+sme2 -fno-builtin-memset"
         if mode == Mode.SSVE:
             cflags += " -DSSVE"
         # else we want SIMD mode, which processes start up in already.
@@ -110,15 +113,15 @@ class SVESIMDRegistersTestCase(TestBase):
 
         register_values += [
             # Streaming mode and ZA are on.
-            ('svcr', '0x0000000000000000'),
+            ('svcr', '0x0000000000000003'),
             # SVG is the streaming vector length in granules.
             ('svg', f'0x{svl_b // 8:016x}'),
         ]
 
-        register_values += [('za', self.byte_vector([0x0]*(svl_b*svl_b)))]
-        
+        register_values += [('za', self.byte_vector(list(range(1, svl_b+1)) * svl_b))]
+
         # TODO: don't check this if we don't have SME2
-        register_values += [('zt0', self.byte_vector([0x00]*(svl_b*2)))]
+        register_values += [('zt0', self.byte_vector(list(range(1, (svl_b*2)+1))))]
 
         return dict(register_values)
 
@@ -209,6 +212,8 @@ class SVESIMDRegistersTestCase(TestBase):
         expected_registers['ffr'] = ffr_value
         
         check_expected_regs()
+
+        # TODO: write ZA and ZT0
 
 #    @no_debug_info_test
 #    @skipIf(archs=no_match(["aarch64"]))
