@@ -1066,7 +1066,7 @@ Status NativeRegisterContextLinux_arm64::ReadAllRegisterValues(
                             m_za_header.size);
   }
 
-  if (GetRegisterInfo().IsSVEPresent() || GetRegisterInfo().IsSSVEPresent()) {
+  if ((GetRegisterInfo().IsSVEPresent() || GetRegisterInfo().IsSSVEPresent()) && m_sve_state != SVEState::StreamingFPSIMD) {
     dst = AddRegisterSetType(dst, RegisterSetType::SVE);
     *(reinterpret_cast<SVEState *>(dst)) = m_sve_state;
     dst += sizeof(m_sve_state);
@@ -1208,11 +1208,21 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
           GetSVEBuffer(), &src, GetSVEBufferSize(), m_sve_buffer_is_valid,
           std::bind(&NativeRegisterContextLinux_arm64::WriteAllSVE, this));
       break;
-    case RegisterSetType::FPR:
-      error = RestoreRegisters(
-          GetFPRBuffer(), &src, GetFPRSize(), m_fpu_is_valid,
-          std::bind(&NativeRegisterContextLinux_arm64::WriteFPR, this));
+    case RegisterSetType::FPR: {
+      // TODO: store the sve state as its own thing we can just read directly?
+      // If we only have SSVE then this is a streaming only system, where to leave
+      // streaming mode we must write FPR data to SVE instead, but with a vector
+      // length of 0.
+      if (!GetRegisterInfo().IsSVEPresent() && GetRegisterInfo().IsSSVEPresent()) {
+        // Convert FPR data into FPSIMD format.
+
+      } else {
+        error = RestoreRegisters(
+            GetFPRBuffer(), &src, GetFPRSize(), m_fpu_is_valid,
+            std::bind(&NativeRegisterContextLinux_arm64::WriteFPR, this));
+      }
       break;
+    }
     case RegisterSetType::MTE:
       error = RestoreRegisters(
           GetMTEControl(), &src, GetMTEControlSize(), m_mte_ctrl_is_valid,
