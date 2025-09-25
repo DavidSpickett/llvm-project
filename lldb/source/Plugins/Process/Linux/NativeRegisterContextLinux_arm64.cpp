@@ -1247,16 +1247,17 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
         
         // TODO: less hacky way to do this
         std::vector<uint8_t> sve_fpsimd_data;
-        sve_fpsimd_data.resize(sve::ptrace_fpsimd_offset + GetFPRSize());
+        size_t data_size = sve::ptrace_fpsimd_offset + GetFPRSize();
+        // NT_ARM_SVE data must be a multiple of 128 bits, and the FPU data size
+        // is not. Round up to next 128 bit multiple.
+        data_size = (data_size + sve::vq_bytes - 1) / sve::vq_bytes * sve::vq_bytes;
+        sve_fpsimd_data.resize(data_size);
 
+        printf("data size: %lu\n", data_size);
         printf("sizeof(user_sve_header): %lu\n", sizeof(user_sve_header));
         printf("sve::ptrace_fpsimd_offset: %d\n", sve::ptrace_fpsimd_offset);
 
         user_sve_header* header = reinterpret_cast<user_sve_header*>(&sve_fpsimd_data[0]);
-        // TODO: is it bad to have 0 in:
-        // * max_size
-        // * max_vl
-        // ?
         std::memset(header, 0, sizeof(user_sve_header));
         header->size = sve_fpsimd_data.size();
         // VL = 0 is a special value to tell the process to exit streaming mode.
@@ -1277,6 +1278,8 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
 
         // TODO: needed?
         m_fpu_is_valid = false;
+        m_sve_buffer_is_valid = false;
+        m_sve_header_is_valid = false;
 
         // Always use non-streaming SVE here.
         error = WriteRegisterSet(&ioVec, sve_fpsimd_data.size(), NT_ARM_SVE);
