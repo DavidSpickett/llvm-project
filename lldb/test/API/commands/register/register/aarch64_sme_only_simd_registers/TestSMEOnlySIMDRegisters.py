@@ -306,3 +306,5 @@ class SVESIMDRegistersTestCase(TestBase):
         check_expected_regs()
         self.expect("expression expr_enter_streaming_mode()")
         check_expected_regs()
+
+    # TODO: check streaming to streaming expression, and non-streaming to non-streaming.

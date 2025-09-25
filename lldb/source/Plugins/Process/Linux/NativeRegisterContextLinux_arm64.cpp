@@ -1232,9 +1232,58 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
       // streaming mode we must write FPR data to SVE instead, but with a vector
       // length of 0.
       if (!GetRegisterInfo().IsSVEPresent() && GetRegisterInfo().IsSSVEPresent()) {
-        // Convert FPR data into FPSIMD format.
-        printf("Should convert to FP format!\n");
-        // TODO: actually restore this.
+        printf("Writing via FPSIMD NT_ARM_SVE...\n");
+        // On a streaming only system, we will have either saved streaming SVE
+        // registers, or FP registers. If we saved FP, we get here and this means
+        // we were outside of streaming mode when the save was done.
+        
+        // TODO: what if we're still in non-streaming mode at this point? Can
+        // we just write to SVE anyway?
+
+        // If after the save we went into streaming mode, we need to write the FP
+        // data to NT_ARM_SVE to exit streaming mode. Instead of the usuaal FP
+        // context.
+        // We must write in FPSIMD format with a vector length of 0 set.
+        
+        // TODO: less hacky way to do this
+        std::vector<uint8_t> sve_fpsimd_data;
+        sve_fpsimd_data.resize(sve::ptrace_fpsimd_offset + GetFPRSize());
+
+        printf("sizeof(user_sve_header): %lu\n", sizeof(user_sve_header));
+        printf("sve::ptrace_fpsimd_offset: %d\n", sve::ptrace_fpsimd_offset);
+
+        user_sve_header* header = reinterpret_cast<user_sve_header*>(&sve_fpsimd_data[0]);
+        // TODO: is it bad to have 0 in:
+        // * max_size
+        // * max_vl
+        // ?
+        std::memset(header, 0, sizeof(user_sve_header));
+        header->size = sve_fpsimd_data.size();
+        // VL = 0 is a special value to tell the process to exit streaming mode.
+        header->vl = 0;
+        // Writing SIMD format.
+        header->flags = sve::ptrace_regs_fpsimd;
+
+        // Copy in SIMD data
+        uint8_t* dst = &sve_fpsimd_data[sve::ptrace_fpsimd_offset];
+        std::memcpy(dst, src, GetFPRSize());
+
+        // Write to ptrace
+        // TODO: use some utility to do this?
+        struct iovec ioVec;
+
+        ioVec.iov_base = &sve_fpsimd_data[0];
+        ioVec.iov_len = sve_fpsimd_data.size();
+
+        // TODO: needed?
+        m_fpu_is_valid = false;
+
+        // Always use non-streaming SVE here.
+        error = WriteRegisterSet(&ioVec, sve_fpsimd_data.size(), NT_ARM_SVE);
+
+        printf("Write NT_ARM_SVE failed?: %d\n", error.Fail());
+
+        // Consume register set.
         src += GetFPRSize();
       } else {
         error = RestoreRegisters(
