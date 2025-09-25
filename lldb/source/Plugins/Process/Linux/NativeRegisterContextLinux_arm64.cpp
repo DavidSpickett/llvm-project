@@ -895,7 +895,7 @@ Status NativeRegisterContextLinux_arm64::WriteRegister(
 enum RegisterSetType : uint32_t {
   GPR,
   SVE, // Used for SVE and SSVE.
-  FPR, // When there is no SVE, or SVE in FPSIMD mode.
+  FPR, // When there is no SVE, or SVE in FPSIMD mode, or streaming only SVE that is in non-streaming mode.
   // Pointer authentication registers are read only, so not included here.
   MTE,
   TLS,
@@ -904,6 +904,20 @@ enum RegisterSetType : uint32_t {
   FPMR,
   GCS, // Guarded Control Stack registers.
 };
+
+const char* RegisterSetTypeToString(RegisterSetType rst) {
+  switch (rst) {
+    case GPR: return "GPR";
+    case SVE: return "SVE";
+    case FPR: return "FPR";
+    case MTE: return "MTE";
+    case TLS: return "TLS";
+    case SME: return "SME";
+    case SME2: return "SME2";
+    case FPMR: return "FPMR";
+    case GCS: return "GCS";
+  }
+}
 
 static uint8_t *AddRegisterSetType(uint8_t *dst,
                                    RegisterSetType register_set_type) {
@@ -919,6 +933,7 @@ static uint8_t *AddSavedRegistersData(uint8_t *dst, void *src, size_t size) {
 static uint8_t *AddSavedRegisters(uint8_t *dst,
                                   enum RegisterSetType register_set_type,
                                   void *src, size_t size) {
+  printf("Adding saved registers of type: %s\n", RegisterSetTypeToString(register_set_type));
   dst = AddRegisterSetType(dst, register_set_type);
   return AddSavedRegistersData(dst, src, size);
 }
@@ -963,8 +978,9 @@ NativeRegisterContextLinux_arm64::CacheAllRegisters(uint32_t &cached_size) {
     }
   }
 
-  // If SVE is enabled we need not copy FPR separately.
-  if (GetRegisterInfo().IsSVEPresent() || GetRegisterInfo().IsSSVEPresent()) {
+  // If SVE is enabled we need not copy FPR separately. If we are in non-streaming
+  // mode of a streaming only process, then we need to save FPR though.
+  if ((GetRegisterInfo().IsSVEPresent() || GetRegisterInfo().IsSSVEPresent()) && m_sve_state != SVEState::StreamingFPSIMD) {
     // Store mode and register data.
     cached_size +=
         sizeof(RegisterSetType) + sizeof(m_sve_state) + GetSVEBufferSize();
@@ -1072,6 +1088,7 @@ Status NativeRegisterContextLinux_arm64::ReadAllRegisterValues(
     dst += sizeof(m_sve_state);
     dst = AddSavedRegistersData(dst, GetSVEBuffer(), GetSVEBufferSize());
   } else {
+    printf("Saving FPR registers!\n");
     dst = AddSavedRegisters(dst, RegisterSetType::FPR, GetFPRBuffer(),
                             GetFPRSize());
   }
@@ -1171,6 +1188,7 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
         *reinterpret_cast<const RegisterSetType *>(src);
     src += sizeof(RegisterSetType);
 
+    printf("Restoring registers of type: %s\n", RegisterSetTypeToString(kind));
     switch (kind) {
     case RegisterSetType::GPR:
       error = RestoreRegisters(
@@ -1215,7 +1233,9 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
       // length of 0.
       if (!GetRegisterInfo().IsSVEPresent() && GetRegisterInfo().IsSSVEPresent()) {
         // Convert FPR data into FPSIMD format.
-
+        printf("Should convert to FP format!\n");
+        // TODO: actually restore this.
+        src += GetFPRSize();
       } else {
         error = RestoreRegisters(
             GetFPRBuffer(), &src, GetFPRSize(), m_fpu_is_valid,
@@ -1445,12 +1465,12 @@ Status NativeRegisterContextLinux_arm64::WriteFPR() {
 
   printf("WriteRegisterSet NT_FPREGSET\n");
 
-  uint8_t* data = (uint8_t*)ioVec.iov_base;
-  printf("Writing this data: ");
-  for(auto i=0; i<ioVec.iov_len;++i) {
-    printf(" 0x%02x", data[i]);
-  }
-  printf("\n");
+  //uint8_t* data = (uint8_t*)ioVec.iov_base;
+  //printf("Writing this data: ");
+  //for(auto i=0; i<ioVec.iov_len;++i) {
+  //  printf(" 0x%02x", data[i]);
+  //}
+  //printf("\n");
 
   return WriteRegisterSet(&ioVec, GetFPRSize(), NT_FPREGSET);
 }
