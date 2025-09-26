@@ -177,6 +177,8 @@ void expr_exit_streaming_mode() {
   write_simd_regs();
 }
 
+bool 
+
 int main() {
 #ifdef SSVE
   // Get SVL first because doing a syscall makes you exit streaming mode.
