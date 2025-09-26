@@ -1281,6 +1281,9 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
         m_sve_buffer_is_valid = false;
         m_sve_header_is_valid = false;
 
+        // TODO: this feels bad but I guess we can make this assumption.
+        m_sve_state = SVEState::StreamingFPSIMD;
+
         // Always use non-streaming SVE here.
         error = WriteRegisterSet(&ioVec, sve_fpsimd_data.size(), NT_ARM_SVE);
 
