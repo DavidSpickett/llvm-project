@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <sys/prctl.h>
 
@@ -10,6 +11,19 @@
 // expression in streaming mode. So it's set by main and we reference this
 // later.
 int svl_b = 0;
+
+#define VREG_NUM 32
+#define VREG_SIZE 16
+
+uint8_t expected_v_regs[VREG_NUM][VREG_SIZE];
+// These are treated as 32-bit but msr/mrs uses 64-bit values.
+uint64_t expected_fpcr = 0;
+uint64_t expected_fpsr = 0;
+uint8_t *expected_za = NULL;
+uint8_t *expected_zt0 = NULL;
+// TODO: expected SVCR? can we get that from EL0?
+
+bool check_streaming, check_za;
 
 static void write_fp_control() {
   // Some of these bits won't get set, this is fine. Just needs to be recongisable
@@ -177,8 +191,6 @@ void expr_exit_streaming_mode() {
   write_simd_regs();
 }
 
-bool 
-
 int main() {
 #ifdef SSVE
   // Get SVL first because doing a syscall makes you exit streaming mode.
@@ -191,5 +203,10 @@ int main() {
   // TODO: what about an active ZA outside of streaming mode?
 #endif
 
-  return 0; // Set a break point here.
+  asm volatile("nop"); // Set a break point here.
+  // A bunch more source lines for us to step to when verifying register
+  // values written by LLDB.
+  asm volatile("nop");
+
+  return 0;
 }

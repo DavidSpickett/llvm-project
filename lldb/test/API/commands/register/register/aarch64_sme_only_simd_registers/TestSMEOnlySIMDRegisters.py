@@ -226,6 +226,60 @@ class SVESIMDRegistersTestCase(TestBase):
 #
 #        check_expected_regs()
 
+    def lookup_address(name, is_ptr):
+        target = self.dbg.GetSelectedTarget()
+        # TODO: assert that module 0 is in fact the test program
+        module = target.module[0]
+
+        sym = module.FindSymbol(name)
+        self.assertTrue(sym.IsValid())
+        address = sym.GetStartAddress().GetLoadAddress(target)
+
+        if not is_ptr:
+            return address
+
+        # Dereference this pointer and return that.
+        err = lldb.SBError()
+        ptr = target.GetProcess().ReadPointerFromMemory(address, err)
+        self.assertTrue(err.Success())
+        
+        return ptr
+
+    def write_expected_reg_data(self, reg_data, check_streaming, check_za):
+        # Write expected register values into program memory so it can be
+        # verified in-process.
+        # This must be done via. memory write instead of expressions because
+        # the latter may try to save/restore registers, which is part of what
+        # this file tests so we can't rely on it here.
+
+        # dict_keys(['v0', 'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7', 'v8', 'v9'
+        # 'v10', 'v11', 'v12', 'v13', 'v14', 'v15', 'v16', 'v17', 'v18', 'v19'
+        # 'v20', 'v21', 'v22', 'v23', 'v24', 'v25', 'v26', 'v27', 'v28', 'v29'
+        # 'v30', 'v31', 'fpsr', 'fpcr', 'z0', 'z1', 'z2', 'z3', 'z4', 'z5', 'z6'
+        # 'z7', 'z8', 'z9', 'z10', 'z11', 'z12', 'z13', 'z14', 'z15', 'z16', 'z17'
+        # 'z18', 'z19', 'z20', 'z21', 'z22', 'z23', 'z24', 'z25', 'z26', 'z27'
+        # 'z28', 'z29', 'z30', 'z31', 'p0', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6'
+        # 'p7', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'ffr',
+        # 'svcr', 'svg', 'za', 'zt0'])
+
+        for reg, value in reg_data.items():
+            sym_name = None
+            data = None
+            # Since we cannot expression evaluate, we have to manually offset
+            # arrays.
+            offset = 0
+            is_ptr = False
+
+            if reg.startswith('fpcr'):
+                sym_name = "expected_fpcr"
+                is_ptr = False
+
+
+
+
+            if (sym_name is None) or (data is None):
+                raise RuntimeError(f"Do not know how to write expected values for register {reg}.")
+
     @no_debug_info_test
     @skipIf(archs=no_match(["aarch64"]))
     @skipIf(oslist=no_match(["linux"]))
@@ -249,6 +303,12 @@ class SVESIMDRegistersTestCase(TestBase):
         expected_registers['z0'] = self.byte_vector([0x12]*16 + [0x00]*(svl_b - 16))
         expected_registers['v0'] = self.byte_vector([0x12]*16)
 
+        # Write back to program so it can verify the values.
+        # self.write_expected_reg_data(expected_registers, False, False)
+        
+        # TODO: step program so it can verify values
+
+        # Check that debugger sees the values too.
         check_expected_regs()
 
         # We can do the same via a V register, the value will be extended and sent as
