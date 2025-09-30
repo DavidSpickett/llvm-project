@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/prctl.h>
 
@@ -12,18 +13,23 @@
 // later.
 int svl_b = 0;
 
+bool check_streaming, check_za;
+
 #define VREG_NUM 32
 #define VREG_SIZE 16
 
-uint8_t expected_v_regs[VREG_NUM][VREG_SIZE];
+uint8_t *expected_v_regs = NULL;
 // These are treated as 32-bit but msr/mrs uses 64-bit values.
-uint64_t expected_fpcr = 0;
-uint64_t expected_fpsr = 0;
+uint64_t *expected_fpcr = NULL;
+uint64_t *expected_fpsr = NULL;
+uint8_t* expected_sve_z = NULL;
+uint8_t* expected_sve_p = NULL;
+uint8_t* expected_sve_ffr = NULL;
 uint8_t *expected_za = NULL;
 uint8_t *expected_zt0 = NULL;
-// TODO: expected SVCR? can we get that from EL0?
-
-bool check_streaming, check_za;
+uint64_t *expected_svcr = NULL;
+// TODO: might not be able to get this if we have to syscall for it.
+uint64_t *expected_svg = NULL;
 
 static void write_fp_control() {
   // Some of these bits won't get set, this is fine. Just needs to be recongisable
@@ -191,10 +197,29 @@ void expr_exit_streaming_mode() {
   write_simd_regs();
 }
 
+void* checked_malloc(size_t size) {
+  void* ptr = malloc(size);
+  if (ptr == NULL)
+    exit(1);
+
+  return ptr;
+}
+
 int main() {
-#ifdef SSVE
-  // Get SVL first because doing a syscall makes you exit streaming mode.
   svl_b = prctl(PR_SME_GET_VL); 
+
+  expected_v_regs = checked_malloc(VREG_NUM * VREG_SIZE);
+  expected_fpcr = checked_malloc(sizeof(uint64_t));
+  expected_fpsr = checked_malloc(sizeof(uint64_t));
+  expected_sve_z = checked_malloc(svl_b * 32);
+  expected_sve_p = checked_malloc((svl_b / 8) * 16);
+  expected_sve_ffr = checked_malloc(svl_b / 8);
+  expected_za = checked_malloc(svl_b * svl_b);
+  expected_zt0 = checked_malloc(svl_b * 2);
+  expected_svcr = checked_malloc(sizeof(uint64_t));
+  expected_svg = checked_malloc(sizeof(uint64_t));
+
+#ifdef SSVE
   SMSTART;
   write_sve_regs();
   write_sme_regs(svl_b);
