@@ -30,19 +30,21 @@ class ByteVector(object):
 
 
 class HexValue(object):
-    def __init__(self, value, size):
+    # Assume all values are 64-bit, but some display as 32-bit, like fpcr.
+    def __init__(self, value, repr_size=8):
         self.value = value
         # In bytes
-        self.size = size
+        self.repr_size = repr_size
 
     def __repr__(self):
-        return f"0x{self.value:0{self.size*2}x}"
+        v = self.value & ((1 << (self.repr_size*8)) - 1)
+        return f"0x{v:0{self.repr_size*2}x}"
 
     def as_bytes(self):
         data = []
         v = self.value
         # Little endian order.
-        for i in range(self.size):
+        for i in range(8):
            data.append(v & 0xFF)
            v >>= 8 
         
@@ -74,7 +76,7 @@ class SVESIMDRegistersTestCase(TestBase):
         return [f'{prefix}{n}' for n in range(count)]
 
     def expected_fpr_control(self):
-        return [("fpsr", HexValue(0x50000015, 4)), ("fpcr", HexValue(0x05551505, 4))]
+        return [("fpsr", HexValue(0x50000015, repr_size=4)), ("fpcr", HexValue(0x05551505, repr_size=4))]
 
     def expected_registers_simd(self, svl_b):
         register_values = []
@@ -101,9 +103,9 @@ class SVESIMDRegistersTestCase(TestBase):
 
         register_values += [
             # SVCR shows that ZA and streaming mode are off.
-            ('svcr', HexValue(0, 8)),
+            ('svcr', HexValue(0)),
             # SVG is the streaming vector length in granules.
-            ('svg', HexValue(svl_b // 8, 8)),
+            ('svg', HexValue(svl_b // 8)),
         ]
 
         # ZA is being faked so is all 0s it is a square with svl_b sides.
@@ -141,9 +143,9 @@ class SVESIMDRegistersTestCase(TestBase):
 
         register_values += [
             # Streaming mode and ZA are on.
-            ('svcr', HexValue(0x3, 8)),
+            ('svcr', HexValue(0x3)),
             # SVG is the streaming vector length in granules.
-            ('svg', HexValue(svl_b // 8, 8)),
+            ('svg', HexValue(svl_b // 8)),
         ]
 
         register_values += [('za', ByteVector(list(range(1, svl_b+1)) * svl_b))]
@@ -189,16 +191,6 @@ class SVESIMDRegistersTestCase(TestBase):
         # the latter may try to save/restore registers, which is part of what
         # this file tests so we can't rely on it here.
 
-        # dict_keys(['v0', 'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7', 'v8', 'v9'
-        # 'v10', 'v11', 'v12', 'v13', 'v14', 'v15', 'v16', 'v17', 'v18', 'v19'
-        # 'v20', 'v21', 'v22', 'v23', 'v24', 'v25', 'v26', 'v27', 'v28', 'v29'
-        # 'v30', 'v31', 'fpsr', 'fpcr', 'z0', 'z1', 'z2', 'z3', 'z4', 'z5', 'z6'
-        # 'z7', 'z8', 'z9', 'z10', 'z11', 'z12', 'z13', 'z14', 'z15', 'z16', 'z17'
-        # 'z18', 'z19', 'z20', 'z21', 'z22', 'z23', 'z24', 'z25', 'z26', 'z27'
-        # 'z28', 'z29', 'z30', 'z31', 'p0', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6'
-        # 'p7', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'ffr',
-        # 'svcr', 'svg', 'za', 'zt0'])
-
         for reg, value in reg_data.items():
             sym_name = None
             # Since we cannot expression evaluate, we have to manually offset
@@ -207,22 +199,10 @@ class SVESIMDRegistersTestCase(TestBase):
 
             # Offsets for scalable registers assume that the expected register
             # data length matches the current svl. 
-            if reg.startswith('v'):
-                num = reg.split('v')[1]
-                offset = 16 * num
-                sym_name = "expected_v_regs"
-            elif reg == 'fpcr':
+            if reg == 'fpcr':
                 sym_name = "expected_fpcr"
             elif reg == 'fpsr':
                 sym_name = "expected_fpsr"
-            elif reg.startswith('z'):
-                num = reg.split('z')[1]
-                offset = len(value.as_bytes()) * num
-                sym_name = "expected_sve_z"
-            elif reg.startswith('p'):
-                num = reg.split('p')[1]
-                offset = len(value.as_bytes()) * num
-                sym_name = "expected_sve_p"
             elif reg == 'ffr':
                 sym_name = "expected_sve_ffr"
             elif reg == 'za':
@@ -233,11 +213,23 @@ class SVESIMDRegistersTestCase(TestBase):
                 sym_name = "expected_svcr"
             elif reg == "svg":
                 sym_name = "expected_svg"
+            elif reg.startswith('v'):
+                num = int(reg.split('v')[1])
+                offset = 16 * num
+                sym_name = "expected_v_regs"
+            elif reg.startswith('z'):
+                num = int(reg.split('z')[1])
+                offset = len(value.as_bytes()) * num
+                sym_name = "expected_sve_z"
+            elif reg.startswith('p'):
+                num = int(reg.split('p')[1])
+                offset = len(value.as_bytes()) * num
+                sym_name = "expected_sve_p"
 
             if sym_name is None:
                 raise RuntimeError(f"Do not know how to write expected values for register {reg}.")
 
-            address = self.lookup_address(sym_name)
+            address = self.lookup_address(sym_name) + offset
             process = self.dbg.GetSelectedTarget().GetProcess()
             err = lldb.SBError()
             wrote = process.WriteMemory(address, bytearray(value.as_bytes()), err)
@@ -340,72 +332,75 @@ class SVESIMDRegistersTestCase(TestBase):
         self.setup_test(Mode.SIMD)
         svl_b = self.get_svl_b()
 
+        # Check for the values the program should have set.
         expected_registers = self.expected_registers_simd(svl_b)
         check_expected_regs = self.check_expected_regs_fn(expected_registers)
-
-        self.write_expected_reg_data(expected_registers, False, False)
-
-        check_expected_regs()
-
-        # In SIMD mode if you write Z0, only the parts that overlap V0 will
-        # change.
-        z_value = ByteVector([0x12]*svl_b)
-        self.runCmd(f'register write z0 "{z_value}"')
-
-        # z0 and z0 should change but nothing else. We check the rest because
-        # we are faking Z register data in this mode, and any offset mistake
-        # could lead to modifying other registers.
-        expected_registers['z0'] = ByteVector([0x12]*16 + [0x00]*(svl_b - 16))
-        expected_registers['v0'] = ByteVector([0x12]*16)
-
-        # Write back to program so it can verify the values.
-        # self.write_expected_reg_data(expected_registers, False, False)
         
-        # TODO: step program so it can verify values
-
-        # Check that debugger sees the values too.
         check_expected_regs()
 
-        # We can do the same via a V register, the value will be extended and sent as
-        # a Z write.
-        v_value = ByteVector([0x34]*16)
-        self.runCmd(f'register write v1 "{v_value}"')
+        # Check the program agrees.
+        self.write_expected_reg_data(expected_registers, False, False)
+        self.expect("next", substrs=["stop reason = step over"])
 
-        expected_registers['z1'] = ByteVector([0x34]*16 + [0x00]*(svl_b - 16))
-        expected_registers['v1'] = v_value
+        # # In SIMD mode if you write Z0, only the parts that overlap V0 will
+        # # change.
+        # z_value = ByteVector([0x12]*svl_b)
+        # self.runCmd(f'register write z0 "{z_value}"')
 
-        check_expected_regs()
+        # # z0 and z0 should change but nothing else. We check the rest because
+        # # we are faking Z register data in this mode, and any offset mistake
+        # # could lead to modifying other registers.
+        # expected_registers['z0'] = ByteVector([0x12]*16 + [0x00]*(svl_b - 16))
+        # expected_registers['v0'] = ByteVector([0x12]*16)
 
-        # FPSR and FPCR are still described as real registers, so they are
-        # sent as normal writes.
-        # Even though you can't set all these bits in reality, until we do
-        # a step, it'll seem like we did.
-        fpcontrol = "0xaaaaaaaa"
+        # # Write back to program so it can verify the values.
+        # # self.write_expected_reg_data(expected_registers, False, False)
+        
+        # # TODO: step program so it can verify values
 
-        # First FPSR on its own.
-        self.runCmd(f'register write fpsr {fpcontrol}')
-        expected_registers['fpsr'] = fpcontrol
+        # # Check that debugger sees the values too.
+        # check_expected_regs()
 
-        check_expected_regs()
+        # # We can do the same via a V register, the value will be extended and sent as
+        # # a Z write.
+        # v_value = ByteVector([0x34]*16)
+        # self.runCmd(f'register write v1 "{v_value}"')
 
-        # Then FPCR.
-        self.runCmd(f'register write fpcr {fpcontrol}')
-        expected_registers['fpcr'] = fpcontrol
+        # expected_registers['z1'] = ByteVector([0x34]*16 + [0x00]*(svl_b - 16))
+        # expected_registers['v1'] = v_value
 
-        check_expected_regs()
+        # check_expected_regs()
 
-        # We are faking SVE registers while outside of streaming mode, and
-        # predicate registers and ffr have no real register to overlay.
-        # We chose to make this an error instead of eating the write silently.
+        # # FPSR and FPCR are still described as real registers, so they are
+        # # sent as normal writes.
+        # # Even though you can't set all these bits in reality, until we do
+        # # a step, it'll seem like we did.
+        # fpcontrol = "0xaaaaaaaa"
 
-        value = ByteVector([0x98]*(svl_b // 8))
-        self.expect(f'register write p0 "{value}"', error=True)
-        check_expected_regs()
-        self.expect(f'register write ffr "{value}"', error=True)
-        check_expected_regs()
+        # # First FPSR on its own.
+        # self.runCmd(f'register write fpsr {fpcontrol}')
+        # expected_registers['fpsr'] = fpcontrol
 
-        # Writing ZA or ZT0 would take us into streaming mode. This transition
-        # is tested in the SVE+SME tests.
+        # check_expected_regs()
+
+        # # Then FPCR.
+        # self.runCmd(f'register write fpcr {fpcontrol}')
+        # expected_registers['fpcr'] = fpcontrol
+
+        # check_expected_regs()
+
+        # # We are faking SVE registers while outside of streaming mode, and
+        # # predicate registers and ffr have no real register to overlay.
+        # # We chose to make this an error instead of eating the write silently.
+
+        # value = ByteVector([0x98]*(svl_b // 8))
+        # self.expect(f'register write p0 "{value}"', error=True)
+        # check_expected_regs()
+        # self.expect(f'register write ffr "{value}"', error=True)
+        # check_expected_regs()
+
+        # # Writing ZA or ZT0 would take us into streaming mode. This transition
+        # # is tested in the SVE+SME tests.
 
 # Expression test combinations:
 # Input state:

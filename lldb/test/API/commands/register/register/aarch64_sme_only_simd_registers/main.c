@@ -31,6 +31,95 @@ uint64_t *expected_svcr = NULL;
 // TODO: might not be able to get this if we have to syscall for it.
 uint64_t *expected_svg = NULL;
 
+// I would return bool here and check that from inside LLDB, but we cannot
+// assume that expression evaluation works. So instead we exit, which is
+// harder to track down but doesn't need expression evaluation to check for.
+void check_register_values(bool streaming, bool za) {
+  uint64_t v_got[2];
+#define VERIFY_V(NUM)                                                          \
+  do {                                                                         \
+    asm volatile("MOV %0, v" #NUM ".d[0]\n\t"                                  \
+                 "MOV %1, v" #NUM ".d[1]\n\t"                                  \
+                 : "=r"(v_got[0]), "=r"(v_got[1]));                            \
+    if (memcmp((void*)(expected_v_regs + (NUM * VREG_SIZE)), &v_got[0], VREG_SIZE) != 0)               \
+      exit(1);                                                                 \
+  } while (0)
+
+  VERIFY_V(0);
+  VERIFY_V(1);
+  VERIFY_V(2);
+  VERIFY_V(3);
+  VERIFY_V(4);
+  VERIFY_V(5);
+  VERIFY_V(6);
+  VERIFY_V(7);
+  VERIFY_V(8);
+  VERIFY_V(9);
+  VERIFY_V(10);
+  VERIFY_V(11);
+  VERIFY_V(12);
+  VERIFY_V(13);
+  VERIFY_V(14);
+  VERIFY_V(15);
+  VERIFY_V(16);
+  VERIFY_V(17);
+  VERIFY_V(18);
+  VERIFY_V(19);
+  VERIFY_V(20);
+  VERIFY_V(21);
+  VERIFY_V(22);
+  VERIFY_V(23);
+  VERIFY_V(24);
+  VERIFY_V(25);
+  VERIFY_V(26);
+  VERIFY_V(27);
+  VERIFY_V(28);
+  VERIFY_V(29);
+  VERIFY_V(30);
+  VERIFY_V(31);
+
+  uint64_t val = 0;
+  asm volatile ("mrs %0, fpcr" : "=r"(val));
+  if (val != *expected_fpcr)
+    exit(1);
+
+  asm volatile ("mrs %0, fpsr" : "=r"(val));
+  if (val != *expected_fpsr)
+    exit(1);
+
+  // // Can't read SVE registers outside of streaming mode.
+  // if (streaming) {
+  //   // TODO: check SVE regs
+  // }
+
+  // if (za) {
+  //   // TODO: check ZA
+  //   uint8_t* got_za = malloc(svl_b*svl_b);
+  //   if (!got_za)
+  //     exit(1);
+
+  //   // Store one row of ZA at a time.
+  //   uint8_t* za_row = got_za;
+  //   for (int i=0; i< svl_b; ++i, za_row += svl_b) {
+  //     asm volatile("mov w12, %w0\n\t"
+  //                  "str za[w12, 0], [%1]\n\t"::"r"(i), "r"(za_row):"w12");
+  //   }
+
+  //   if (memcmp(expected_za, got_za, svl_b*svl_b) != 0)
+  //     exit(1);
+
+  //   // TODO: zt0 only if present?
+  //   uint8_t* got_zt0 = malloc(svl_b*2);
+  //   if (!got_zt0)
+  //     exit(1);
+
+  //   asm volatile("str zt0, [%0]" ::"r"(got_zt0));
+
+  //   if (memcmp(expected_zt0, got_zt0, svl_b*2) != 0)
+  //     exit(1);
+  // }
+}
+
 static void write_fp_control() {
   // Some of these bits won't get set, this is fine. Just needs to be recongisable
   // from inside the debugger.
@@ -228,10 +317,7 @@ int main() {
   // TODO: what about an active ZA outside of streaming mode?
 #endif
 
-  asm volatile("nop"); // Set a break point here.
-  // A bunch more source lines for us to step to when verifying register
-  // values written by LLDB.
-  asm volatile("nop");
+  check_register_values(/*streaming=*/false, /*za=*/false); // Set a break point here.
 
   return 0;
 }
