@@ -36,6 +36,7 @@ uint64_t *expected_svg = NULL;
 // harder to track down but doesn't need expression evaluation to check for.
 void check_register_values(bool streaming, bool za) {
   uint64_t v_got[2];
+// TODO: relying in memcmp to not use any V registers. Can we make sure of that?
 #define VERIFY_V(NUM)                                                          \
   do {                                                                         \
     asm volatile("MOV %0, v" #NUM ".d[0]\n\t"                                  \
@@ -317,7 +318,15 @@ int main() {
   // TODO: what about an active ZA outside of streaming mode?
 #endif
 
+  // The number of these matches with the number of "next" lldb issues. The
+  // idea is that lldb will write register values in, updated the expected values,
+  // then step over. This should cause the values written via ptrace to appear
+  // in this process and match the expected values in memory.
   check_register_values(/*streaming=*/false, /*za=*/false); // Set a break point here.
+  check_register_values(/*streaming=*/false, /*za=*/false);
+  check_register_values(/*streaming=*/false, /*za=*/false);
+  check_register_values(/*streaming=*/false, /*za=*/false);
+  check_register_values(/*streaming=*/false, /*za=*/false);
 
   return 0;
 }
