@@ -108,6 +108,8 @@ void check_register_values(bool streaming, bool za) {
     VERIFY_V(29);
     VERIFY_V(30);
     VERIFY_V(31);
+
+    #undef VERIFY_V
   }
 
   uint64_t val = 0;
@@ -121,16 +123,14 @@ void check_register_values(bool streaming, bool za) {
 
   // Can't read SVE registers outside of streaming mode.
   if (streaming) {
-    // Read P registers first, as we have to trash one of them to read Z registers
-    // later.
     size_t preg_size = svl_b / 8;
     uint8_t* got_sve_p = checked_malloc(preg_size);
     #define VERIFY_P(NUM) \
-    do {                                                                         \
-      asm volatile("str p" #NUM ", [%0]"                                  \
-                   :: "r"(&got_sve_p[0]): "memory");                  \
-      if (gpr_only_memcmp((void*)(expected_sve_p + (NUM * preg_size)), (void*)got_sve_p, preg_size) != 0)               \
-        exit(1);                                                                 \
+    do {                                                                                                  \
+      asm volatile("str p" #NUM ", [%0]"                                                                  \
+                   :: "r"(&got_sve_p[0]): "memory");                                                      \
+      if (gpr_only_memcmp((void*)(expected_sve_p + (NUM * preg_size)), (void*)got_sve_p, preg_size) != 0) \
+        exit(1);                                                                                          \
     } while (0)
 
     VERIFY_P(0);
@@ -150,7 +150,8 @@ void check_register_values(bool streaming, bool za) {
     VERIFY_P(14);
     VERIFY_P(15);
 
-    // TODO: does the p0 clobber here restore enough for our purposes?
+    #undef VERIFY_P
+
     /*
       __asm__ volatile(
     "ptrue  p0.d           \n"
@@ -161,15 +162,26 @@ void check_register_values(bool streaming, bool za) {
     );
     */
 
-//    uint8_t* got_sve_z = checked_malloc(svl_b);
-//  #define VERIFY_Z(NUM)                                                          \
-//    do {                                                                         \
-//      asm volatile("ptrue p0.d\n\t"                                              \
-//                   "st1d z" #NUM ".d, p0, [%0]\n\t"                              \
-//                   :: "r"(got_sve_z) : "memory", "p0", "z" #NUM );               \
-//      if (gpr_only_memcmp((void*)(expected_z_regs + (NUM * svl_b)), (void*)&got_sve_z[0], svl_b) != 0)               \
-//        exit(1);                                                                 \
-//    } while (0)
+    uint8_t* got_sve_z = checked_malloc(svl_b);
+    // Note that we are not using a p0 clobber below. We will manually restore
+    // it once we have checked all the Z registers.
+    // If we relied on the clobber, the compiler would only save and restore if
+    // if was already using p0, which it usually is not.
+  #define VERIFY_Z(NUM)                                                                            \
+    do {                                                                                           \
+      asm volatile("ptrue p0.d\n\t"                                                                \
+                   "st1d z" #NUM ".d, p0, [%0]\n\t"                                                \
+                   :: "r"(got_sve_z) : "memory");                                            \
+      if (gpr_only_memcmp((void*)(expected_sve_z + (NUM * svl_b)), (void*)got_sve_z, svl_b) != 0) \
+        exit(1);                                                                                   \
+    } while (0)
+
+    VERIFY_Z(0);
+
+    // Put back p0 value. LLDB will expect to see this.
+    asm volatile("ldr p0, [%0]"::"r"(expected_sve_p));
+
+    #undef VERIFY_Z
   }
 
   // if (za) {
