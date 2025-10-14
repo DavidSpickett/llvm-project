@@ -400,11 +400,13 @@ int main() {
   // TODO: what about an active ZA outside of streaming mode?
 #endif
 
-  // The number of these matches with the number of "next" lldb issues. The
+  // The number of these is greater than or equal to the number of "next" 
+  // each lldb test issues. The
   // idea is that lldb will write register values in, updated the expected values,
   // then step over. This should cause the values written via ptrace to appear
   // in this process and match the expected values in memory.
   check_register_values(check_streaming, check_za); // Set a break point here.
+  check_register_values(check_streaming, check_za);
   check_register_values(check_streaming, check_za);
   check_register_values(check_streaming, check_za);
   check_register_values(check_streaming, check_za);

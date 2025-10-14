@@ -263,53 +263,64 @@ class SVESIMDRegistersTestCase(TestBase):
         expected_registers = self.expected_registers_streaming(svl_b)
         check_expected_regs = self.check_expected_regs_fn(expected_registers)
 
-        #expected_registers['p1'] = ByteVector([0x99] * (svl_b // 8))
+        self.write_expected_reg_data(expected_registers, True, True)
+        self.expect("next", substrs=["stop reason = step over"])
+        check_expected_regs()
+
+        # Write via Z0
+        z_value = ByteVector([0x12]*svl_b)
+        self.runCmd(f'register write z0 "{z_value}"')
+
+        # z0 and v0 should change but nothing else.
+        expected_registers['z0'] = z_value
+        expected_registers['v0'] = ByteVector([0x12]*16) 
+        
+        self.write_expected_reg_data(expected_registers, True, True)
+        self.expect("next", substrs=["stop reason = step over"])
+        check_expected_regs()
+
+        # We can do the same via a V register, the value will be extended and sent as
+        # a Z write.
+        v_value = ByteVector([0x34]*16)
+        self.runCmd(f'register write v1 "{v_value}"')
+
+        # The lower half of z1 is the v value, the upper part is the 0x2 that was previously in there.
+        expected_registers['z1'] = ByteVector([0x34]*16 + [0x02]*(svl_b - 16))
+        expected_registers['v1'] = v_value 
 
         self.write_expected_reg_data(expected_registers, True, True)
         self.expect("next", substrs=["stop reason = step over"])
-
         check_expected_regs()
 
-        # # Write via Z0
-        # z_value = ByteVector([0x12]*svl_b)
-        # self.runCmd(f'register write z0 "{z_value}"')
+        # Even though you can't set all these bits in reality, until we do
+        # a step, it'll seem like we did.
+        # This arbitrary value is 0x55...55 when written to the real register.
+        # Some bits cannot be set.
+        fpsr = HexValue(0xa800008a, repr_size=4)
 
-        # # z0 and v0 should change but nothing else.
-        # expected_registers['z0'] = z_value
-        # expected_registers['v0'] = ByteVector([0x12]*16) 
+        self.runCmd(f'register write fpsr {fpsr}')
+        expected_registers['fpsr'] = fpsr 
 
-        # check_expected_regs()
+        self.write_expected_reg_data(expected_registers, True, True)
+        self.expect("next", substrs=["stop reason = step over"])
+        check_expected_regs()
 
-        # # We can do the same via a V register, the value will be extended and sent as
-        # # a Z write.
-        # v_value = ByteVector([0x34]*16)
-        # self.runCmd(f'register write v1 "{v_value}"')
+        # Again this is 0x55...55, but with bits we cannot set removed.
+        fpcr = HexValue(0x05551505, repr_size=4)
+        self.runCmd(f'register write fpcr {fpcr}')
+        expected_registers['fpcr'] = fpcr
 
-        # # The lower half of z1 is the v value, the upper part is the 0x2 that was previously in there.
-        # expected_registers['z1'] = ByteVector([0x34]*16 + [0x02]*(svl_b - 16))
-        # expected_registers['v1'] = v_value 
+        self.write_expected_reg_data(expected_registers, True, True)
+        self.expect("next", substrs=["stop reason = step over"])
+        check_expected_regs()
 
-        # check_expected_regs()
+        p_value = ByteVector([0x65] * (svl_b // 8))
+        self.expect(f'register write p0 "{p_value}"')
+        expected_registers['p0'] = p_value
 
-        # # Even though you can't set all these bits in reality, until we do
-        # # a step, it'll seem like we did.
-        # fpcontrol = "0xaaaaaaaa"
-
-        # self.runCmd(f'register write fpsr {fpcontrol}')
-        # expected_registers['fpsr'] = fpcontrol
-
-        # check_expected_regs()
-
-        # self.runCmd(f'register write fpcr {fpcontrol}')
-        # expected_registers['fpcr'] = fpcontrol
-
-        # check_expected_regs()
-
-        # p_value = ByteVector([0x65] * (svl_b // 8))
-        # self.expect(f'register write p0 "{p_value}"')
-        # expected_registers['p0'] = p_value
-
-        # check_expected_regs()
+        self.write_expected_reg_data(expected_registers, True, True)
+        self.expect("next", substrs=["stop reason = step over"])
+        check_expected_regs()
 
         # ffr_value = ByteVector([0x78] * (svl_b // 8))
         # self.expect(f'register write ffr "{ffr_value}"')
