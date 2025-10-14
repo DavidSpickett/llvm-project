@@ -184,32 +184,26 @@ void check_register_values(bool streaming, bool za) {
     #undef VERIFY_Z
   }
 
-  // if (za) {
-  //   // TODO: check ZA
-  //   uint8_t* got_za = malloc(svl_b*svl_b);
-  //   if (!got_za)
-  //     exit(1);
+  if (za) {
+    uint8_t* got_za = checked_malloc(svl_b*svl_b);
 
-  //   // Store one row of ZA at a time.
-  //   uint8_t* za_row = got_za;
-  //   for (int i=0; i< svl_b; ++i, za_row += svl_b) {
-  //     asm volatile("mov w12, %w0\n\t"
-  //                  "str za[w12, 0], [%1]\n\t"::"r"(i), "r"(za_row):"w12");
-  //   }
+    // Store one row of ZA at a time.
+    uint8_t* za_row = got_za;
+    for (int i=0; i< svl_b; ++i, za_row += svl_b) {
+      asm volatile("mov w12, %w0\n\t"
+                   "str za[w12, 0], [%1]\n\t"::"r"(i), "r"(za_row):"w12");
+    }
 
-  //   if (gpr_only_memcmp(expected_za, got_za, svl_b*svl_b) != 0)
-  //     exit(1);
+    if (gpr_only_memcmp(expected_za, got_za, svl_b*svl_b) != 0)
+      exit(1);
 
-  //   // TODO: zt0 only if present?
-  //   uint8_t* got_zt0 = malloc(svl_b*2);
-  //   if (!got_zt0)
-  //     exit(1);
+    // TODO: zt0 only if present?
+    uint8_t* got_zt0 = checked_malloc(svl_b*2);
+    asm volatile("str zt0, [%0]" ::"r"(got_zt0));
 
-  //   asm volatile("str zt0, [%0]" ::"r"(got_zt0));
-
-  //   if (gpr_only_memcmp((void*)expected_zt0, (void*)got_zt0, svl_b*2) != 0)
-  //     exit(1);
-  // }
+    if (gpr_only_memcmp((void*)expected_zt0, (void*)got_zt0, svl_b*2) != 0)
+      exit(1);
+  }
 }
 
 static void write_fp_control() {
