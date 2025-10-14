@@ -31,53 +31,84 @@ uint64_t *expected_svcr = NULL;
 // TODO: might not be able to get this if we have to syscall for it.
 uint64_t *expected_svg = NULL;
 
+static void* checked_malloc(size_t size) {
+  void* ptr = malloc(size);
+  if (ptr == NULL)
+    exit(1);
+
+  return ptr;
+}
+
+// TODO: do this using a compiler flag to disable simd?
+static int gpr_only_memcmp(uint8_t* lhs, uint8_t* rhs, size_t len) {
+  // Incredibly slow hand written memcmp so we don't have to use
+  // the compiler or library version, which would use SIMD registers
+  // and corrupt registers before we can read them.
+  int ret = 0;
+  for (; len; ++lhs, ++rhs, --len) {
+    asm volatile(
+        "cmp  %w1, %w2\n\t"
+        "cset %w0, ne \n\t"
+        : "=r"(ret)
+        : "r"(*lhs), "r"(*rhs)
+        : "cc"
+    );
+    if (ret)
+      return ret;
+  }
+  return ret;
+}
+
 // I would return bool here and check that from inside LLDB, but we cannot
 // assume that expression evaluation works. So instead we exit, which is
 // harder to track down but doesn't need expression evaluation to check for.
 void check_register_values(bool streaming, bool za) {
-  uint64_t v_got[2];
-// TODO: relying in memcmp to not use any V registers. Can we make sure of that?
-#define VERIFY_V(NUM)                                                          \
-  do {                                                                         \
-    asm volatile("MOV %0, v" #NUM ".d[0]\n\t"                                  \
-                 "MOV %1, v" #NUM ".d[1]\n\t"                                  \
-                 : "=r"(v_got[0]), "=r"(v_got[1]));                            \
-    if (memcmp((void*)(expected_v_regs + (NUM * VREG_SIZE)), &v_got[0], VREG_SIZE) != 0)               \
-      exit(1);                                                                 \
-  } while (0)
+  // In streaming mode, SIMD instructions are illegal. We will read the SIMD
+  // portion of the streaming SVE registers later.
+  if (!streaming) {
+    uint64_t v_got[2];
+  #define VERIFY_V(NUM)                                                          \
+    do {                                                                         \
+      asm volatile("MOV %0, v" #NUM ".d[0]\n\t"                                  \
+                   "MOV %1, v" #NUM ".d[1]\n\t"                                  \
+                   : "=r"(v_got[0]), "=r"(v_got[1]));                            \
+      if (gpr_only_memcmp((void*)(expected_v_regs + (NUM * VREG_SIZE)), (void*)&v_got[0], VREG_SIZE) != 0)               \
+        exit(1);                                                                 \
+    } while (0)
 
-  VERIFY_V(0);
-  VERIFY_V(1);
-  VERIFY_V(2);
-  VERIFY_V(3);
-  VERIFY_V(4);
-  VERIFY_V(5);
-  VERIFY_V(6);
-  VERIFY_V(7);
-  VERIFY_V(8);
-  VERIFY_V(9);
-  VERIFY_V(10);
-  VERIFY_V(11);
-  VERIFY_V(12);
-  VERIFY_V(13);
-  VERIFY_V(14);
-  VERIFY_V(15);
-  VERIFY_V(16);
-  VERIFY_V(17);
-  VERIFY_V(18);
-  VERIFY_V(19);
-  VERIFY_V(20);
-  VERIFY_V(21);
-  VERIFY_V(22);
-  VERIFY_V(23);
-  VERIFY_V(24);
-  VERIFY_V(25);
-  VERIFY_V(26);
-  VERIFY_V(27);
-  VERIFY_V(28);
-  VERIFY_V(29);
-  VERIFY_V(30);
-  VERIFY_V(31);
+    VERIFY_V(0);
+    VERIFY_V(1);
+    VERIFY_V(2);
+    VERIFY_V(3);
+    VERIFY_V(4);
+    VERIFY_V(5);
+    VERIFY_V(6);
+    VERIFY_V(7);
+    VERIFY_V(8);
+    VERIFY_V(9);
+    VERIFY_V(10);
+    VERIFY_V(11);
+    VERIFY_V(12);
+    VERIFY_V(13);
+    VERIFY_V(14);
+    VERIFY_V(15);
+    VERIFY_V(16);
+    VERIFY_V(17);
+    VERIFY_V(18);
+    VERIFY_V(19);
+    VERIFY_V(20);
+    VERIFY_V(21);
+    VERIFY_V(22);
+    VERIFY_V(23);
+    VERIFY_V(24);
+    VERIFY_V(25);
+    VERIFY_V(26);
+    VERIFY_V(27);
+    VERIFY_V(28);
+    VERIFY_V(29);
+    VERIFY_V(30);
+    VERIFY_V(31);
+  }
 
   uint64_t val = 0;
   asm volatile ("mrs %0, fpcr" : "=r"(val));
@@ -88,10 +119,58 @@ void check_register_values(bool streaming, bool za) {
   if (val != *expected_fpsr)
     exit(1);
 
-  // // Can't read SVE registers outside of streaming mode.
-  // if (streaming) {
-  //   // TODO: check SVE regs
-  // }
+  // Can't read SVE registers outside of streaming mode.
+  if (streaming) {
+    // Read P registers first, as we have to trash one of them to read Z registers
+    // later.
+    size_t preg_size = svl_b / 8;
+    uint8_t* got_sve_p = checked_malloc(preg_size);
+    #define VERIFY_P(NUM) \
+    do {                                                                         \
+      asm volatile("str p" #NUM ", [%0]"                                  \
+                   :: "r"(&got_sve_p[0]): "memory");                  \
+      if (gpr_only_memcmp((void*)(expected_sve_p + (NUM * preg_size)), (void*)got_sve_p, preg_size) != 0)               \
+        exit(1);                                                                 \
+    } while (0)
+
+    VERIFY_P(0);
+    VERIFY_P(1);
+    VERIFY_P(2);
+    VERIFY_P(3);
+    VERIFY_P(4);
+    VERIFY_P(5);
+    VERIFY_P(6);
+    VERIFY_P(7);
+    VERIFY_P(8);
+    VERIFY_P(9);
+    VERIFY_P(10);
+    VERIFY_P(11);
+    VERIFY_P(12);
+    VERIFY_P(13);
+    VERIFY_P(14);
+    VERIFY_P(15);
+
+    // TODO: does the p0 clobber here restore enough for our purposes?
+    /*
+      __asm__ volatile(
+    "ptrue  p0.d           \n"
+    "st1d   z0.d, p0, [%0] \n"
+    :
+    : "r"(dst)
+    : "memory", "p0", "z0"
+    );
+    */
+
+//    uint8_t* got_sve_z = checked_malloc(svl_b);
+//  #define VERIFY_Z(NUM)                                                          \
+//    do {                                                                         \
+//      asm volatile("ptrue p0.d\n\t"                                              \
+//                   "st1d z" #NUM ".d, p0, [%0]\n\t"                              \
+//                   :: "r"(got_sve_z) : "memory", "p0", "z" #NUM );               \
+//      if (gpr_only_memcmp((void*)(expected_z_regs + (NUM * svl_b)), (void*)&got_sve_z[0], svl_b) != 0)               \
+//        exit(1);                                                                 \
+//    } while (0)
+  }
 
   // if (za) {
   //   // TODO: check ZA
@@ -106,7 +185,7 @@ void check_register_values(bool streaming, bool za) {
   //                  "str za[w12, 0], [%1]\n\t"::"r"(i), "r"(za_row):"w12");
   //   }
 
-  //   if (memcmp(expected_za, got_za, svl_b*svl_b) != 0)
+  //   if (gpr_only_memcmp(expected_za, got_za, svl_b*svl_b) != 0)
   //     exit(1);
 
   //   // TODO: zt0 only if present?
@@ -116,7 +195,7 @@ void check_register_values(bool streaming, bool za) {
 
   //   asm volatile("str zt0, [%0]" ::"r"(got_zt0));
 
-  //   if (memcmp(expected_zt0, got_zt0, svl_b*2) != 0)
+  //   if (gpr_only_memcmp((void*)expected_zt0, (void*)got_zt0, svl_b*2) != 0)
   //     exit(1);
   // }
 }
@@ -287,14 +366,6 @@ void expr_exit_streaming_mode() {
   write_simd_regs();
 }
 
-void* checked_malloc(size_t size) {
-  void* ptr = malloc(size);
-  if (ptr == NULL)
-    exit(1);
-
-  return ptr;
-}
-
 int main() {
   svl_b = prctl(PR_SME_GET_VL); 
 
@@ -309,7 +380,12 @@ int main() {
   expected_svcr = checked_malloc(sizeof(uint64_t));
   expected_svg = checked_malloc(sizeof(uint64_t));
 
+  bool check_streaming = false;
+  bool check_za = false;
+
 #ifdef SSVE
+  check_streaming = true;
+  check_za = true;
   SMSTART;
   write_sve_regs();
   write_sme_regs(svl_b);
@@ -322,11 +398,11 @@ int main() {
   // idea is that lldb will write register values in, updated the expected values,
   // then step over. This should cause the values written via ptrace to appear
   // in this process and match the expected values in memory.
-  check_register_values(/*streaming=*/false, /*za=*/false); // Set a break point here.
-  check_register_values(/*streaming=*/false, /*za=*/false);
-  check_register_values(/*streaming=*/false, /*za=*/false);
-  check_register_values(/*streaming=*/false, /*za=*/false);
-  check_register_values(/*streaming=*/false, /*za=*/false);
+  check_register_values(check_streaming, check_za); // Set a break point here.
+  check_register_values(check_streaming, check_za);
+  check_register_values(check_streaming, check_za);
+  check_register_values(check_streaming, check_za);
+  check_register_values(check_streaming, check_za);
 
   return 0;
 }
