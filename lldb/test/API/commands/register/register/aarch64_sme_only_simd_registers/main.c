@@ -416,6 +416,11 @@ int main() {
   check_register_values(check_streaming, check_za);
   check_register_values(check_streaming, check_za);
   check_register_values(check_streaming, check_za);
+  check_register_values(check_streaming, check_za);
+  check_register_values(check_streaming, check_za);
+  check_register_values(check_streaming, check_za);
+  // To catch us in case there are not enough above.
+  exit(2);
 
   return 0;
 }
