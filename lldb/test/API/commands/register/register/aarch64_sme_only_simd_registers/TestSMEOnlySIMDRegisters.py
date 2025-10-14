@@ -322,12 +322,24 @@ class SVESIMDRegistersTestCase(TestBase):
         self.expect("next", substrs=["stop reason = step over"])
         check_expected_regs()
 
-        # ffr_value = ByteVector([0x78] * (svl_b // 8))
-        # self.expect(f'register write ffr "{ffr_value}"')
-        # expected_registers['ffr'] = ffr_value
-        
-        # check_expected_regs()
+        # We cannot interact with ffr in streaming mode while in process. So this
+        # will be verified by ptrace only.
+        ffr_value = ByteVector([0x78] * (svl_b // 8))
+        self.expect(f'register write ffr "{ffr_value}"')
+        expected_registers['ffr'] = ffr_value
 
+        # It will appear as if we wrote ffr, but in streaming mode without
+        # SME_FA64+SVE, it essentially does not exist. 
+        check_expected_regs()
+
+        # At least make sure we didn't disturb anything else.
+        self.write_expected_reg_data(expected_registers, True, True)
+        self.expect("next", substrs=["stop reason = step over"])
+
+        # The kernel will always return 0s for ffr.
+        expected_registers['ffr'] = ByteVector([0x0] * (svl_b // 8))
+        check_expected_regs()
+        
         # za_value = ByteVector(list(range(2, svl_b+2)) * svl_b)
         # self.expect(f'register write za "{za_value}"')
         # expected_registers['za'] = za_value

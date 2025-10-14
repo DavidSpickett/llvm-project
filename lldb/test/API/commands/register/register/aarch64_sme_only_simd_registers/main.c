@@ -123,6 +123,10 @@ void check_register_values(bool streaming, bool za) {
 
   // Can't read SVE registers outside of streaming mode.
   if (streaming) {
+    // We do not check FFR because we have no way to read or write it while in
+    // streaming mode. Both wrffr and store value of ffr require SME_FA64, which
+    // requires that you have SVE, which we don't have.
+
     size_t preg_size = svl_b / 8;
     uint8_t* got_sve_p = checked_malloc(preg_size);
     #define VERIFY_P(NUM) \
@@ -216,7 +220,8 @@ static void write_fp_control() {
 
 static void write_sve_regs() {
   // We do not explicitly set ffr here because doing so requires the smefa64
-  // extension. To have that extension you have to have SVE outside of streaming
+  // extension (both for load to ffr, and the specific wrffr instruction).
+  // To have that extension you have to have SVE outside of streaming
   // mode which we do not have.
 
   asm volatile("ptrue p0.b\n\t");
