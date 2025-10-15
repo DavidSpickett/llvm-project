@@ -353,18 +353,22 @@ static void write_simd_regs() {
 #define SMSTOP_SM SM_INST(2)
 #define SMSTOP_ZA SM_INST(4)
 
-// TODO: test re-entering streaming mode with ZA enabled and disabled?
+void expr_function(bool streaming, bool za) {
+  if (streaming) {
+    SMSTART_SM;
+    write_sve_regs();
+  } else {
+    SMSTOP_SM;
+    write_simd_regs();
+  }
 
-void expr_enter_streaming_mode() {
-  SMSTART;
-  write_sve_regs();
-  write_sme_regs(svl_b);
-}
-
-void expr_exit_streaming_mode() {
-  SMSTOP;
-  write_simd_regs();
-}
+  if (za) {
+    SMSTART_ZA;
+    write_sme_regs(svl_b);
+  } else {
+    SMSTOP_ZA;
+  }
+  }
 
 typedef struct {
   bool streaming;
@@ -419,12 +423,15 @@ int main(int argc, char *argv[]) {
   expected_svg = checked_malloc(sizeof(uint64_t));
 
   if (initial_state.streaming) {
-    SMSTART;
+    SMSTART_SM;
     write_sve_regs();
-    write_sme_regs(svl_b);
   } else {
     write_simd_regs();
-    // We do not test active ZA outside of streaming mode.
+  }
+
+  if (initial_state.za) {
+    SMSTART_ZA;
+    write_sme_regs(svl_b);
   }
 
   // The number of these is greater than or equal to the number of "next" 
