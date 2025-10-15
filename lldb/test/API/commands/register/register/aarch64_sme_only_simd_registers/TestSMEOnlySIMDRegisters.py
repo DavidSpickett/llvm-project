@@ -17,6 +17,16 @@ class Mode(Enum):
     SIMD = 0
     SSVE = 2
 
+    def __str__(self):
+        return "streaming" if self == Mode.SSVE else "simd"
+
+class ZA(Enum):
+    ON = 1
+    OFF = 2
+
+    def __str__(self):
+        return "on" if self == ZA.ON else "off"
+
 
 class ByteVector(object):
     def __init__(self, data):
@@ -52,17 +62,6 @@ class HexValue(object):
 
 
 class SVESIMDRegistersTestCase(TestBase):
-    def get_build_flags(self, mode):
-        # TODO: put these in the makefile instead
-        # The memset provided by glibc may use instructions we cannot use in
-        # streaming mode.
-        cflags = "-march=armv8-a+sve+sme+sme2 -fno-builtin-memset"
-        if mode == Mode.SSVE:
-            cflags += " -DSSVE"
-        # else we want SIMD mode, which processes start up in already.
-
-        return {"CFLAGS_EXTRAS": cflags}
-
     def skip_if_needed(self, mode):
         if self.isAArch64SVE():
             self.skipTest("SVE must not be present outside of streaming mode.")
@@ -155,14 +154,16 @@ class SVESIMDRegistersTestCase(TestBase):
 
         return dict(register_values)
 
-    def setup_test(self, mode):
+    def setup_test(self, mode, za):
         self.skip_if_needed(mode)
 
-        self.build(dictionary=self.get_build_flags(mode))
+        self.build()
         self.line = line_number("main.c", "// Set a break point here.")
 
         exe = self.getBuildArtifact("a.out")
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
+
+        self.runCmd(f"settings set target.run-args {mode} {za}")
 
         lldbutil.run_break_set_by_file_and_line(
             self, "main.c", self.line, num_expected_locations=1
@@ -184,12 +185,14 @@ class SVESIMDRegistersTestCase(TestBase):
                     substrs=[f"{n} = {v}" for n, v in expected_registers.items()])
         return check_expected_regs
 
-    def write_expected_reg_data(self, reg_data, write_streaming, write_za):
+    def write_expected_reg_data(self, reg_data):
         # Write expected register values into program memory so it can be
         # verified in-process.
         # This must be done via. memory write instead of expressions because
         # the latter may try to save/restore registers, which is part of what
         # this file tests so we can't rely on it here.
+        # We will always write Z and ZA/ZTO, it's up to the program whether it
+        # checks them.
 
         for reg, value in reg_data.items():
             sym_name = None
@@ -257,13 +260,13 @@ class SVESIMDRegistersTestCase(TestBase):
     @skipIf(archs=no_match(["aarch64"]))
     @skipIf(oslist=no_match(["linux"]))
     def test_simd_registers_ssve(self):
-        self.setup_test(Mode.SSVE)
+        self.setup_test(Mode.SSVE, ZA.ON)
         svl_b = self.get_svl_b()
 
         expected_registers = self.expected_registers_streaming(svl_b)
         check_expected_regs = self.check_expected_regs_fn(expected_registers)
 
-        self.write_expected_reg_data(expected_registers, True, True)
+        self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
         check_expected_regs()
 
@@ -275,7 +278,7 @@ class SVESIMDRegistersTestCase(TestBase):
         expected_registers['z0'] = z_value
         expected_registers['v0'] = ByteVector([0x12]*16) 
         
-        self.write_expected_reg_data(expected_registers, True, True)
+        self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
         check_expected_regs()
 
@@ -288,7 +291,7 @@ class SVESIMDRegistersTestCase(TestBase):
         expected_registers['z1'] = ByteVector([0x34]*16 + [0x02]*(svl_b - 16))
         expected_registers['v1'] = v_value 
 
-        self.write_expected_reg_data(expected_registers, True, True)
+        self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
         check_expected_regs()
 
@@ -301,7 +304,7 @@ class SVESIMDRegistersTestCase(TestBase):
         self.runCmd(f'register write fpsr {fpsr}')
         expected_registers['fpsr'] = fpsr 
 
-        self.write_expected_reg_data(expected_registers, True, True)
+        self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
         check_expected_regs()
 
@@ -310,7 +313,7 @@ class SVESIMDRegistersTestCase(TestBase):
         self.runCmd(f'register write fpcr {fpcr}')
         expected_registers['fpcr'] = fpcr
 
-        self.write_expected_reg_data(expected_registers, True, True)
+        self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
         check_expected_regs()
 
@@ -318,7 +321,7 @@ class SVESIMDRegistersTestCase(TestBase):
         self.expect(f'register write p0 "{p_value}"')
         expected_registers['p0'] = p_value
 
-        self.write_expected_reg_data(expected_registers, True, True)
+        self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
         check_expected_regs()
 
@@ -333,7 +336,7 @@ class SVESIMDRegistersTestCase(TestBase):
         check_expected_regs()
 
         # At least make sure we didn't disturb anything else.
-        self.write_expected_reg_data(expected_registers, True, True)
+        self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
 
         # The kernel will always return 0s for ffr.
@@ -344,7 +347,7 @@ class SVESIMDRegistersTestCase(TestBase):
         self.expect(f'register write za "{za_value}"')
         expected_registers['za'] = za_value
 
-        self.write_expected_reg_data(expected_registers, True, True)
+        self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
         check_expected_regs()
 
@@ -353,7 +356,7 @@ class SVESIMDRegistersTestCase(TestBase):
         self.expect(f'register write zt0 "{zt0_value}"')
         expected_registers['zt0'] = zt0_value
 
-        self.write_expected_reg_data(expected_registers, True, True)
+        self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
         check_expected_regs()
 
@@ -361,14 +364,14 @@ class SVESIMDRegistersTestCase(TestBase):
     @skipIf(archs=no_match(["aarch64"]))
     @skipIf(oslist=no_match(["linux"]))
     def test_simd_registers_simd(self):
-        self.setup_test(Mode.SIMD)
+        self.setup_test(Mode.SIMD, ZA.OFF)
         svl_b = self.get_svl_b()
 
         # Check for the values the program should have set.
         expected_registers = self.expected_registers_simd(svl_b)
         check_expected_regs = self.check_expected_regs_fn(expected_registers)
 
-        self.write_expected_reg_data(expected_registers, False, False)
+        self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
         
         check_expected_regs()
@@ -384,7 +387,7 @@ class SVESIMDRegistersTestCase(TestBase):
         expected_registers['z0'] = ByteVector([0x12]*16 + [0x00]*(svl_b - 16))
         expected_registers['v0'] = ByteVector([0x12]*16)
 
-        self.write_expected_reg_data(expected_registers, False, False)
+        self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
         
         check_expected_regs()
@@ -397,7 +400,7 @@ class SVESIMDRegistersTestCase(TestBase):
         expected_registers['z1'] = ByteVector([0x34]*16 + [0x00]*(svl_b - 16))
         expected_registers['v1'] = v_value
 
-        self.write_expected_reg_data(expected_registers, False, False)
+        self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
         
         check_expected_regs()
@@ -412,7 +415,7 @@ class SVESIMDRegistersTestCase(TestBase):
         self.runCmd(f'register write fpsr 0x{fpcontrol:08x}')
         expected_registers['fpsr'] = HexValue(fpcontrol, repr_size=4)
 
-        self.write_expected_reg_data(expected_registers, False, False)
+        self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
 
         check_expected_regs()
@@ -423,7 +426,7 @@ class SVESIMDRegistersTestCase(TestBase):
         self.runCmd(f'register write fpcr 0x{fpcontrol:08x}')
         expected_registers['fpcr'] = HexValue(fpcontrol, repr_size=4)
 
-        self.write_expected_reg_data(expected_registers, False, False)
+        self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
 
         check_expected_regs()
@@ -453,7 +456,7 @@ class SVESIMDRegistersTestCase(TestBase):
 #    @skipIf(oslist=no_match(["linux"]))
 #    def test_expr_simd_to_streaming(self):
 #        # TODO: this test requires that you have streaming mode too!!!
-#        self.setup_test(Mode.SIMD)
+#        self.setup_test(Mode.SIMD, ZA.OFF)
 #        svl_b = self.get_svl_b()
 # 
 #        expected_registers = self.expected_registers_simd(svl_b)
@@ -467,7 +470,7 @@ class SVESIMDRegistersTestCase(TestBase):
 #    @skipIf(archs=no_match(["aarch64"]))
 #    @skipIf(oslist=no_match(["linux"]))
 #    def test_expr_simd_to_streaming(self):
-#        self.setup_test(Mode.SSVE)
+#        self.setup_test(Mode.SSVE, ZA.ON)
 #        svl_b = self.get_svl_b()
 # 
 #        expected_registers = self.expected_registers_streaming(svl_b)

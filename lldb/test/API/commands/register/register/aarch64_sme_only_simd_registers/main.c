@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,8 +13,6 @@
 // expression in streaming mode. So it's set by main and we reference this
 // later.
 int svl_b = 0;
-
-bool check_streaming, check_za;
 
 #define VREG_NUM 32
 #define VREG_SIZE 16
@@ -155,16 +154,6 @@ void check_register_values(bool streaming, bool za) {
     VERIFY_P(15);
 
     #undef VERIFY_P
-
-    /*
-      __asm__ volatile(
-    "ptrue  p0.d           \n"
-    "st1d   z0.d, p0, [%0] \n"
-    :
-    : "r"(dst)
-    : "memory", "p0", "z0"
-    );
-    */
 
     uint8_t* got_sve_z = checked_malloc(svl_b);
     // Note that we are not using a p0 clobber below. We will manually restore
@@ -377,7 +366,45 @@ void expr_exit_streaming_mode() {
   write_simd_regs();
 }
 
-int main() {
+typedef struct {
+  bool streaming;
+  bool za;
+  // TODO: vl?
+} ProcessState;
+
+ProcessState get_initial_state(const char* mode, const char* za) {
+  ProcessState ret;
+
+  if (strcmp("streaming", mode) == 0)
+    ret.streaming = true;
+  else if (strcmp("simd", mode) == 0)
+    ret.streaming = false;
+  else {
+    printf("Unexpected value \"%s\" for mode option.", mode);
+    exit(1);
+  }
+
+  if (strcmp("on", za) == 0)
+    ret.za = true;
+  else if (strcmp("off", za) == 0)
+    ret.za = false;
+  else {
+    printf("Unexpected value \"%s\" for za option.", za);
+    exit(1);
+  }
+
+  return ret;
+}
+
+int main(int argc, char *argv[]) {
+  if (argc != 3) {
+    printf("Expected 2 arguments, process mode and za on or off.");
+    exit(1);
+  }
+
+  ProcessState initial_state = get_initial_state(argv[1], argv[2]);
+
+  // Making a syscall exits streaming mode, so get this up front.
   svl_b = prctl(PR_SME_GET_VL); 
 
   expected_v_regs = checked_malloc(VREG_NUM * VREG_SIZE);
@@ -391,34 +418,29 @@ int main() {
   expected_svcr = checked_malloc(sizeof(uint64_t));
   expected_svg = checked_malloc(sizeof(uint64_t));
 
-  bool check_streaming = false;
-  bool check_za = false;
-
-#ifdef SSVE
-  check_streaming = true;
-  check_za = true;
-  SMSTART;
-  write_sve_regs();
-  write_sme_regs(svl_b);
-#else
-  write_simd_regs();
-  // TODO: what about an active ZA outside of streaming mode?
-#endif
+  if (initial_state.streaming) {
+    SMSTART;
+    write_sve_regs();
+    write_sme_regs(svl_b);
+  } else {
+    write_simd_regs();
+    // We do not test active ZA outside of streaming mode.
+  }
 
   // The number of these is greater than or equal to the number of "next" 
   // each lldb test issues. The
   // idea is that lldb will write register values in, updated the expected values,
   // then step over. This should cause the values written via ptrace to appear
   // in this process and match the expected values in memory.
-  check_register_values(check_streaming, check_za); // Set a break point here.
-  check_register_values(check_streaming, check_za);
-  check_register_values(check_streaming, check_za);
-  check_register_values(check_streaming, check_za);
-  check_register_values(check_streaming, check_za);
-  check_register_values(check_streaming, check_za);
-  check_register_values(check_streaming, check_za);
-  check_register_values(check_streaming, check_za);
-  check_register_values(check_streaming, check_za);
+  check_register_values(initial_state.streaming, initial_state.za); // Set a break point here.
+  check_register_values(initial_state.streaming, initial_state.za);
+  check_register_values(initial_state.streaming, initial_state.za);
+  check_register_values(initial_state.streaming, initial_state.za);
+  check_register_values(initial_state.streaming, initial_state.za);
+  check_register_values(initial_state.streaming, initial_state.za);
+  check_register_values(initial_state.streaming, initial_state.za);
+  check_register_values(initial_state.streaming, initial_state.za);
+  check_register_values(initial_state.streaming, initial_state.za);
   // To catch us in case there are not enough above.
   exit(2);
 
