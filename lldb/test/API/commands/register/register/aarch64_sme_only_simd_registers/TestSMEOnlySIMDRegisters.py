@@ -504,56 +504,10 @@ class SVESIMDRegistersTestCase(TestBase):
     @no_debug_info_test
     @skipIf(archs=no_match(["aarch64"]))
     @skipIf(oslist=no_match(["linux"]))
-    def test_expr(self):
+    def test_expr_restore(self):
         # We could expand all these out into their own tests but there are so
         # many combinations I've put them all together.
         for (sm, sz), (em, ez) in self.generate_expr_tests():
             # TODO: if trace is on, and log this
             print("Testing", sm, sz, em, ez)
             self.do_expr_test(sm, sz, em, ez)
-
-    # TODO: is it easier to run all these in one test?
-
-    # @no_debug_info_test
-    # @skipIf(archs=no_match(["aarch64"]))
-    # @skipIf(oslist=no_match(["linux"]))
-    # def test_expr_simd_to_streaming_za_off(self):
-    #     # TODO: skip tests we can't run?
-    #     self.do_expr_test(Mode.SIMD, ZA.OFF, "expr_enter_streaming_mode_za_off")
-
-    # @no_debug_info_test
-    # @skipIf(archs=no_match(["aarch64"]))
-    # @skipIf(oslist=no_match(["linux"]))
-    # def test_expr_simd_to_streaming_za_on(self):
-    #     # TODO: skip tests we can't run?
-    #     self.do_expr_test(Mode.SIMD, ZA.ON, "expr_enter_streaming_mode_za_on")
-
-
-#        # TODO: this test requires that you have streaming mode too!!!
-#        self.setup_test(Mode.SIMD, ZA.OFF)
-#        svl_b = self.get_svl_b()
-# 
-#        expected_registers = self.expected_registers_simd(svl_b)
-#        check_expected_regs = self.check_expected_regs_fn(expected_registers)
-# 
-#        check_expected_regs()
-#        self.expect("expression expr_enter_streaming_mode()")
-#        check_expected_regs()
-
-#    @no_debug_info_test
-#    @skipIf(archs=no_match(["aarch64"]))
-#    @skipIf(oslist=no_match(["linux"]))
-#    def test_expr_simd_to_streaming(self):
-#        self.setup_test(Mode.SSVE, ZA.ON)
-#        svl_b = self.get_svl_b()
-# 
-#        expected_registers = self.expected_registers_streaming(svl_b)
-#        check_expected_regs = self.check_expected_regs_fn(expected_registers)
-# 
-#        check_expected_regs()
-#        self.expect("expression expr_exit_streaming_mode()")
-#        check_expected_regs()
-
-
-    # TODO: check streaming to streaming expression, and non-streaming to non-streaming, including ZA on and off.
-    # TODO: check restoring only ZA without disturbing anything else.
