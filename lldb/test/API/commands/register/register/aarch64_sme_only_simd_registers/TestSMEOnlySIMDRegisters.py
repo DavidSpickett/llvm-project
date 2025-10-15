@@ -78,7 +78,7 @@ class SVESIMDRegistersTestCase(TestBase):
     def expected_fpr_control(self):
         return [("fpsr", HexValue(0x50000015, repr_size=4)), ("fpcr", HexValue(0x05551505, repr_size=4))]
 
-    def expected_registers_simd(self, svl_b):
+    def expected_registers_simd(self, svl_b, za):
         register_values = []
 
         # V regs are {N <7 0s> N <7 0s>} because we set the bottom element to N
@@ -102,22 +102,25 @@ class SVESIMDRegistersTestCase(TestBase):
         register_values += [("ffr", ByteVector([0]*(svl_b // 8)))]
 
         register_values += [
-            # SVCR shows that ZA and streaming mode are off.
-            ('svcr', HexValue(0)),
+            # SVCR shows that streaming mode is off, ZA can be on or off.
+            ('svcr', HexValue(2 if za == ZA.ON else 0)),
             # SVG is the streaming vector length in granules.
             ('svg', HexValue(svl_b // 8)),
         ]
-
-        # ZA is being faked so is all 0s it is a square with svl_b sides.
-        register_values += [('za', ByteVector([0x0]*(svl_b*svl_b)))]
-
-        # TODO: don't check this if we don't have SME2
-        # Fake zt0.
-        register_values += [('zt0', ByteVector([0x00]*(svl_b*2)))]
+        
+        # TODO: don't check ZT0 if we don't have SME2
+        if za == za.ON:
+            register_values += [('za', ByteVector(list(range(1, svl_b+1)) * svl_b))]
+            register_values += [('zt0', ByteVector(list(range(1, (svl_b*2)+1))))]
+        else:
+            # ZA is being faked so is all 0s it is a square with svl_b sides.
+            register_values += [('za', ByteVector([0x0]*(svl_b*svl_b)))]
+            # ZT0 is also fake.
+            register_values += [('zt0', ByteVector([0x00]*(svl_b*2)))]
 
         return dict(register_values)
 
-    def expected_registers_streaming(self, svl_b):
+    def expected_registers_streaming(self, svl_b, za):
         register_values = []
 
         # Streaming SVE registers have their elements set to their number plus 1.
@@ -142,16 +145,21 @@ class SVESIMDRegistersTestCase(TestBase):
         register_values += [("ffr", ByteVector([0]*(svl_b // 8)))]
 
         register_values += [
-            # Streaming mode and ZA are on.
-            ('svcr', HexValue(0x3)),
+            # Streaming mode is on and ZA can be on or off
+            ('svcr', HexValue(0x3 if za == ZA.ON else 0x1)),
             # SVG is the streaming vector length in granules.
             ('svg', HexValue(svl_b // 8)),
         ]
 
-        register_values += [('za', ByteVector(list(range(1, svl_b+1)) * svl_b))]
-
-        # TODO: don't check this if we don't have SME2
-        register_values += [('zt0', ByteVector(list(range(1, (svl_b*2)+1))))]
+        # TODO: don't check ZT0 if we don't have SME2
+        if za == za.ON:
+            register_values += [('za', ByteVector(list(range(1, svl_b+1)) * svl_b))]
+            register_values += [('zt0', ByteVector(list(range(1, (svl_b*2)+1))))]
+        else:
+            # ZA is being faked so is all 0s it is a square with svl_b sides.
+            register_values += [('za', ByteVector([0x0]*(svl_b*svl_b)))]
+            # ZT0 is also fake.
+            register_values += [('zt0', ByteVector([0x00]*(svl_b*2)))]
 
         return dict(register_values)
 
@@ -456,10 +464,11 @@ class SVESIMDRegistersTestCase(TestBase):
         self.setup_test(start_mode, start_za)
         svl_b = self.get_svl_b()
 
+        # TODO: can we combine these into one that takes the start settings?
         if start_mode == Mode.SSVE:
-            expected_registers = self.expected_registers_streaming(svl_b)
+            expected_registers = self.expected_registers_streaming(svl_b, start_za)
         else:
-            expected_registers = self.expected_registers_simd(svl_b)
+            expected_registers = self.expected_registers_simd(svl_b, start_za)
         check_expected_regs = self.check_expected_regs_fn(expected_registers)
 
         # The program sets up the initial state by running code in process.
