@@ -438,11 +438,9 @@ class SVESIMDRegistersTestCase(TestBase):
         self.expect(f'register write ffr "{value}"', error=True)
         check_expected_regs()
 
-        # TODO: write za and zt0? 
-        # and verify svcr and svg in the process
-
-        # Writing ZA or ZT0 would take us into streaming mode. This transition
-        # is tested in the SVE+SME tests.
+        # In theory we could test writing to ZA and ZT0, however this would
+        # enable streaming mode. In streaming mode, their handling is the same
+        # as on an SVE+SME system, and so is covered in other tests.
 
 # Expression test combinations:
 # Input state:
