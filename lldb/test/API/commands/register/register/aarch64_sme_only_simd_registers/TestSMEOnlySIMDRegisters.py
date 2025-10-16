@@ -457,11 +457,7 @@ class SVESIMDRegistersTestCase(TestBase):
         self.setup_test(start_mode, start_za)
         svl_b = self.get_svl_b()
 
-        # TODO: can we combine these into one that takes the start settings?
-        if start_mode == Mode.SSVE:
-            expected_registers = self.expected_registers_streaming(svl_b, start_za)
-        else:
-            expected_registers = self.expected_registers_simd(svl_b, start_za)
+        expected_registers = self.expected_registers_generic(svl_b, start_mode, start_za)
         check_expected_regs = self.check_expected_regs_fn(expected_registers)
 
         # The program sets up the initial state by running code in process.
@@ -494,13 +490,13 @@ class SVESIMDRegistersTestCase(TestBase):
 
         return expr_tests
 
-#     @no_debug_info_test
-#     @skipIf(archs=no_match(["aarch64"]))
-#     @skipIf(oslist=no_match(["linux"]))
-#     def test_expr_restore(self):
-#         # We could expand all these out into their own tests but there are so
-#         # many combinations I've put them all together.
-#         for (sm, sz), (em, ez) in self.generate_expr_tests():
-#             # TODO: if trace is on, and log this
-#             print("Testing", sm, sz, em, ez)
-#             self.do_expr_test(sm, sz, em, ez)
+    @no_debug_info_test
+    @skipIf(archs=no_match(["aarch64"]))
+    @skipIf(oslist=no_match(["linux"]))
+    def test_expr_restore(self):
+        # We could expand all these out into their own tests but there are so
+        # many combinations I've put them all together.
+        for (sm, sz), (em, ez) in self.generate_expr_tests():
+            # TODO: if trace is on, and log this
+            print("Testing", sm, sz, em, ez)
+            self.do_expr_test(sm, sz, em, ez)
