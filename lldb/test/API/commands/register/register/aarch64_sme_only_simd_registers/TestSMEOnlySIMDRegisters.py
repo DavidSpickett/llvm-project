@@ -265,7 +265,7 @@ class SVESIMDRegistersTestCase(TestBase):
         self.setup_test(Mode.SSVE, ZA.ON)
         svl_b = self.get_svl_b()
 
-        expected_registers = self.expected_registers_streaming(svl_b, ZA.ON)
+        expected_registers = self.expected_registers_generic(svl_b, Mode.SSVE, ZA.ON)
         check_expected_regs = self.check_expected_regs_fn(expected_registers)
 
         self.write_expected_reg_data(expected_registers)
@@ -370,7 +370,7 @@ class SVESIMDRegistersTestCase(TestBase):
         svl_b = self.get_svl_b()
 
         # Check for the values the program should have set.
-        expected_registers = self.expected_registers_simd(svl_b, ZA.OFF)
+        expected_registers = self.expected_registers_generic(svl_b, Mode.SIMD, ZA.OFF)
         check_expected_regs = self.check_expected_regs_fn(expected_registers)
 
         self.write_expected_reg_data(expected_registers)
