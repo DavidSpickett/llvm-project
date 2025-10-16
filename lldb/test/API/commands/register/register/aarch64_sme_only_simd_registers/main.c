@@ -5,6 +5,10 @@
 #include <string.h>
 #include <sys/prctl.h>
 
+#ifndef PR_SME_SET_VL
+#define PR_SME_SET_VL 63
+#endif
+
 #ifndef PR_SME_GET_VL
 #define PR_SME_GET_VL 64
 #endif
@@ -353,7 +357,10 @@ static void write_simd_regs() {
 #define SMSTOP_SM SM_INST(2)
 #define SMSTOP_ZA SM_INST(4)
 
-void expr_function(bool streaming, bool za) {
+void expr_function(bool streaming, bool za, unsigned svl) {
+  // Making this call exits streaming mode so it must be done first.
+  prctl(PR_SME_SET_VL, svl);
+
   if (streaming) {
     SMSTART_SM;
     write_sve_regs();
@@ -373,10 +380,10 @@ void expr_function(bool streaming, bool za) {
 typedef struct {
   bool streaming;
   bool za;
-  // TODO: vl?
+  int svl;
 } ProcessState;
 
-ProcessState get_initial_state(const char* mode, const char* za) {
+ProcessState get_initial_state(const char* mode, const char* za, const char* svl) {
   ProcessState ret;
 
   if (strcmp("streaming", mode) == 0)
@@ -384,7 +391,7 @@ ProcessState get_initial_state(const char* mode, const char* za) {
   else if (strcmp("simd", mode) == 0)
     ret.streaming = false;
   else {
-    printf("Unexpected value \"%s\" for mode option.", mode);
+    printf("Unexpected value \"%s\" for mode option.\n", mode);
     exit(1);
   }
 
@@ -393,7 +400,13 @@ ProcessState get_initial_state(const char* mode, const char* za) {
   else if (strcmp("off", za) == 0)
     ret.za = false;
   else {
-    printf("Unexpected value \"%s\" for za option.", za);
+    printf("Unexpected value \"%s\" for za option.\n", za);
+    exit(1);
+  }
+
+  ret.svl = atoi(svl);
+  if (!svl) {
+    printf("Unexpected svl \"%s\"\n", svl);
     exit(1);
   }
 
@@ -401,15 +414,16 @@ ProcessState get_initial_state(const char* mode, const char* za) {
 }
 
 int main(int argc, char *argv[]) {
-  if (argc != 3) {
-    printf("Expected 2 arguments, process mode and za on or off.");
+  if (argc != 4) {
+    printf("Expected 3 arguments, process mode, za on or off, streaming vector length\n");
     exit(1);
   }
 
-  ProcessState initial_state = get_initial_state(argv[1], argv[2]);
+  ProcessState initial_state = get_initial_state(argv[1], argv[2], argv[3]);
+  svl_b = initial_state.svl;
 
-  // Making a syscall exits streaming mode, so get this up front.
-  svl_b = prctl(PR_SME_GET_VL); 
+  // Making a syscall exits streaming mode, so we have to set this now.
+  prctl(PR_SME_SET_VL, svl_b);
 
   expected_v_regs = checked_malloc(VREG_NUM * VREG_SIZE);
   expected_fpcr = checked_malloc(sizeof(uint64_t));

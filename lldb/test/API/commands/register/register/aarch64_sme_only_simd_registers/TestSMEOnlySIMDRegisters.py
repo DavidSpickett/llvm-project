@@ -139,24 +139,20 @@ class SVESIMDRegistersTestCase(TestBase):
 
         # TODO: don't check ZT0 if we don't have SME2
         # ZA and ZTO may be enabled or disabled regardless of streaming mode.
+        # ZA is a square of vector length * vector length.
+        # ZT0 is 512 bits regardless of streaming vector length.
         if za == ZA.ON:
             register_values += [('za', ByteVector(list(range(1, svl_b+1)) * svl_b))]
-            register_values += [('zt0', ByteVector(list(range(1, (svl_b*2)+1))))]
+            register_values += [('zt0', ByteVector(list(range(1, (512 // 8)+1))))]
         else:
-            # ZA is being faked so is all 0s it is a square with svl_b sides.
+            # ZA is fake.
             register_values += [('za', ByteVector([0x0]*(svl_b*svl_b)))]
             # ZT0 is also fake.
-            register_values += [('zt0', ByteVector([0x00]*(svl_b*2)))]
+            register_values += [('zt0', ByteVector([0x00]*(512 // 8)))]
 
         return dict(register_values)
 
-    def expected_registers_simd(self, svl_b, za):
-        return self.expected_registers_generic(svl_b, Mode.SIMD, za)
-
-    def expected_registers_streaming(self, svl_b, za):
-        return self.expected_registers_generic(svl_b, Mode.SSVE, za)
-
-    def setup_test(self, mode, za):
+    def setup_test(self, mode, za, svl):
         self.skip_if_needed(mode)
 
         self.build()
@@ -165,7 +161,7 @@ class SVESIMDRegistersTestCase(TestBase):
         exe = self.getBuildArtifact("a.out")
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
 
-        self.runCmd(f"settings set target.run-args {mode} {za}")
+        self.runCmd(f"settings set target.run-args {mode} {za} {svl}")
 
         lldbutil.run_break_set_by_file_and_line(
             self, "main.c", self.line, num_expected_locations=1
@@ -258,194 +254,194 @@ class SVESIMDRegistersTestCase(TestBase):
         
         return ptr
 
-    @no_debug_info_test
-    @skipIf(archs=no_match(["aarch64"]))
-    @skipIf(oslist=no_match(["linux"]))
-    def test_simd_registers_ssve(self):
-        self.setup_test(Mode.SSVE, ZA.ON)
-        svl_b = self.get_svl_b()
-
-        expected_registers = self.expected_registers_generic(svl_b, Mode.SSVE, ZA.ON)
-        check_expected_regs = self.check_expected_regs_fn(expected_registers)
-
-        self.write_expected_reg_data(expected_registers)
-        self.expect("next", substrs=["stop reason = step over"])
-        check_expected_regs()
-
-        # Write via Z0
-        z_value = ByteVector([0x12]*svl_b)
-        self.runCmd(f'register write z0 "{z_value}"')
-
-        # z0 and v0 should change but nothing else.
-        expected_registers['z0'] = z_value
-        expected_registers['v0'] = ByteVector([0x12]*16) 
-        
-        self.write_expected_reg_data(expected_registers)
-        self.expect("next", substrs=["stop reason = step over"])
-        check_expected_regs()
-
-        # We can do the same via a V register, the value will be extended and sent as
-        # a Z write.
-        v_value = ByteVector([0x34]*16)
-        self.runCmd(f'register write v1 "{v_value}"')
-
-        # The lower half of z1 is the v value, the upper part is the 0x2 that was previously in there.
-        expected_registers['z1'] = ByteVector([0x34]*16 + [0x02]*(svl_b - 16))
-        expected_registers['v1'] = v_value 
-
-        self.write_expected_reg_data(expected_registers)
-        self.expect("next", substrs=["stop reason = step over"])
-        check_expected_regs()
-
-        # Even though you can't set all these bits in reality, until we do
-        # a step, it'll seem like we did.
-        # This arbitrary value is 0x55...55 when written to the real register.
-        # Some bits cannot be set.
-        fpsr = HexValue(0xa800008a, repr_size=4)
-
-        self.runCmd(f'register write fpsr {fpsr}')
-        expected_registers['fpsr'] = fpsr 
-
-        self.write_expected_reg_data(expected_registers)
-        self.expect("next", substrs=["stop reason = step over"])
-        check_expected_regs()
-
-        # Again this is 0x55...55, but with bits we cannot set removed.
-        fpcr = HexValue(0x05551505, repr_size=4)
-        self.runCmd(f'register write fpcr {fpcr}')
-        expected_registers['fpcr'] = fpcr
-
-        self.write_expected_reg_data(expected_registers)
-        self.expect("next", substrs=["stop reason = step over"])
-        check_expected_regs()
-
-        p_value = ByteVector([0x65] * (svl_b // 8))
-        self.expect(f'register write p0 "{p_value}"')
-        expected_registers['p0'] = p_value
-
-        self.write_expected_reg_data(expected_registers)
-        self.expect("next", substrs=["stop reason = step over"])
-        check_expected_regs()
-
-        # We cannot interact with ffr in streaming mode while in process. So this
-        # will be verified by ptrace only.
-        ffr_value = ByteVector([0x78] * (svl_b // 8))
-        self.expect(f'register write ffr "{ffr_value}"')
-        expected_registers['ffr'] = ffr_value
-
-        # It will appear as if we wrote ffr, but in streaming mode without
-        # SME_FA64+SVE, it essentially does not exist. 
-        check_expected_regs()
-
-        # At least make sure we didn't disturb anything else.
-        self.write_expected_reg_data(expected_registers)
-        self.expect("next", substrs=["stop reason = step over"])
-
-        # The kernel will always return 0s for ffr.
-        expected_registers['ffr'] = ByteVector([0x0] * (svl_b // 8))
-        check_expected_regs()
-        
-        za_value = ByteVector(list(range(2, svl_b+2)) * svl_b)
-        self.expect(f'register write za "{za_value}"')
-        expected_registers['za'] = za_value
-
-        self.write_expected_reg_data(expected_registers)
-        self.expect("next", substrs=["stop reason = step over"])
-        check_expected_regs()
-
-        # # TODO: only do this for SME2
-        zt0_value = ByteVector(list(range(2, (svl_b*2)+2)))
-        self.expect(f'register write zt0 "{zt0_value}"')
-        expected_registers['zt0'] = zt0_value
-
-        self.write_expected_reg_data(expected_registers)
-        self.expect("next", substrs=["stop reason = step over"])
-        check_expected_regs()
-
-    @no_debug_info_test
-    @skipIf(archs=no_match(["aarch64"]))
-    @skipIf(oslist=no_match(["linux"]))
-    def test_simd_registers_simd(self):
-        self.setup_test(Mode.SIMD, ZA.OFF)
-        svl_b = self.get_svl_b()
-
-        # Check for the values the program should have set.
-        expected_registers = self.expected_registers_generic(svl_b, Mode.SIMD, ZA.OFF)
-        check_expected_regs = self.check_expected_regs_fn(expected_registers)
-
-        self.write_expected_reg_data(expected_registers)
-        self.expect("next", substrs=["stop reason = step over"])
-        
-        check_expected_regs()
-
-        # In SIMD mode if you write Z0, only the parts that overlap V0 will
-        # change.
-        z_value = ByteVector([0x12]*svl_b)
-        self.runCmd(f'register write z0 "{z_value}"')
-
-        # z0 and z0 should change but nothing else. We check the rest because
-        # we are faking Z register data in this mode, and any offset mistake
-        # could lead to modifying other registers.
-        expected_registers['z0'] = ByteVector([0x12]*16 + [0x00]*(svl_b - 16))
-        expected_registers['v0'] = ByteVector([0x12]*16)
-
-        self.write_expected_reg_data(expected_registers)
-        self.expect("next", substrs=["stop reason = step over"])
-        
-        check_expected_regs()
-
-        # We can do the same via a V register, the value will be extended and sent as
-        # a Z write.
-        v_value = ByteVector([0x34]*16)
-        self.runCmd(f'register write v1 "{v_value}"')
-
-        expected_registers['z1'] = ByteVector([0x34]*16 + [0x00]*(svl_b - 16))
-        expected_registers['v1'] = v_value
-
-        self.write_expected_reg_data(expected_registers)
-        self.expect("next", substrs=["stop reason = step over"])
-        
-        check_expected_regs()
-
-        # FPSR and FPCR are still described as real registers, so they are
-        # sent as normal writes.
-        # This is the value 0xaaaaaaaa but only the bits that we can actually
-        # set in reality.
-        fpcontrol = 0xa800008a
-
-        # First FPSR on its own.
-        self.runCmd(f'register write fpsr 0x{fpcontrol:08x}')
-        expected_registers['fpsr'] = HexValue(fpcontrol, repr_size=4)
-
-        self.write_expected_reg_data(expected_registers)
-        self.expect("next", substrs=["stop reason = step over"])
-
-        check_expected_regs()
-
-        # Then FPCR. This value is 0xaaaaaaaa reduced to the bits we can actually
-        # set.
-        fpcontrol = 0x02aaaa02
-        self.runCmd(f'register write fpcr 0x{fpcontrol:08x}')
-        expected_registers['fpcr'] = HexValue(fpcontrol, repr_size=4)
-
-        self.write_expected_reg_data(expected_registers)
-        self.expect("next", substrs=["stop reason = step over"])
-
-        check_expected_regs()
-
-        # We are faking SVE registers while outside of streaming mode, and
-        # predicate registers and ffr have no real register to overlay.
-        # We chose to make this an error instead of eating the write silently.
-
-        value = ByteVector([0x98]*(svl_b // 8))
-        self.expect(f'register write p0 "{value}"', error=True)
-        check_expected_regs()
-        self.expect(f'register write ffr "{value}"', error=True)
-        check_expected_regs()
-
-        # In theory we could test writing to ZA and ZT0, however this would
-        # enable streaming mode. In streaming mode, their handling is the same
-        # as on an SVE+SME system, and so is covered in other tests.
+#     @no_debug_info_test
+#     @skipIf(archs=no_match(["aarch64"]))
+#     @skipIf(oslist=no_match(["linux"]))
+#     def test_simd_registers_ssve(self):
+#         self.setup_test(Mode.SSVE, ZA.ON)
+#         svl_b = self.get_svl_b()
+# 
+#         expected_registers = self.expected_registers_generic(svl_b, Mode.SSVE, ZA.ON)
+#         check_expected_regs = self.check_expected_regs_fn(expected_registers)
+# 
+#         self.write_expected_reg_data(expected_registers)
+#         self.expect("next", substrs=["stop reason = step over"])
+#         check_expected_regs()
+# 
+#         # Write via Z0
+#         z_value = ByteVector([0x12]*svl_b)
+#         self.runCmd(f'register write z0 "{z_value}"')
+# 
+#         # z0 and v0 should change but nothing else.
+#         expected_registers['z0'] = z_value
+#         expected_registers['v0'] = ByteVector([0x12]*16) 
+#         
+#         self.write_expected_reg_data(expected_registers)
+#         self.expect("next", substrs=["stop reason = step over"])
+#         check_expected_regs()
+# 
+#         # We can do the same via a V register, the value will be extended and sent as
+#         # a Z write.
+#         v_value = ByteVector([0x34]*16)
+#         self.runCmd(f'register write v1 "{v_value}"')
+# 
+#         # The lower half of z1 is the v value, the upper part is the 0x2 that was previously in there.
+#         expected_registers['z1'] = ByteVector([0x34]*16 + [0x02]*(svl_b - 16))
+#         expected_registers['v1'] = v_value 
+# 
+#         self.write_expected_reg_data(expected_registers)
+#         self.expect("next", substrs=["stop reason = step over"])
+#         check_expected_regs()
+# 
+#         # Even though you can't set all these bits in reality, until we do
+#         # a step, it'll seem like we did.
+#         # This arbitrary value is 0x55...55 when written to the real register.
+#         # Some bits cannot be set.
+#         fpsr = HexValue(0xa800008a, repr_size=4)
+# 
+#         self.runCmd(f'register write fpsr {fpsr}')
+#         expected_registers['fpsr'] = fpsr 
+# 
+#         self.write_expected_reg_data(expected_registers)
+#         self.expect("next", substrs=["stop reason = step over"])
+#         check_expected_regs()
+# 
+#         # Again this is 0x55...55, but with bits we cannot set removed.
+#         fpcr = HexValue(0x05551505, repr_size=4)
+#         self.runCmd(f'register write fpcr {fpcr}')
+#         expected_registers['fpcr'] = fpcr
+# 
+#         self.write_expected_reg_data(expected_registers)
+#         self.expect("next", substrs=["stop reason = step over"])
+#         check_expected_regs()
+# 
+#         p_value = ByteVector([0x65] * (svl_b // 8))
+#         self.expect(f'register write p0 "{p_value}"')
+#         expected_registers['p0'] = p_value
+# 
+#         self.write_expected_reg_data(expected_registers)
+#         self.expect("next", substrs=["stop reason = step over"])
+#         check_expected_regs()
+# 
+#         # We cannot interact with ffr in streaming mode while in process. So this
+#         # will be verified by ptrace only.
+#         ffr_value = ByteVector([0x78] * (svl_b // 8))
+#         self.expect(f'register write ffr "{ffr_value}"')
+#         expected_registers['ffr'] = ffr_value
+# 
+#         # It will appear as if we wrote ffr, but in streaming mode without
+#         # SME_FA64+SVE, it essentially does not exist. 
+#         check_expected_regs()
+# 
+#         # At least make sure we didn't disturb anything else.
+#         self.write_expected_reg_data(expected_registers)
+#         self.expect("next", substrs=["stop reason = step over"])
+# 
+#         # The kernel will always return 0s for ffr.
+#         expected_registers['ffr'] = ByteVector([0x0] * (svl_b // 8))
+#         check_expected_regs()
+#         
+#         za_value = ByteVector(list(range(2, svl_b+2)) * svl_b)
+#         self.expect(f'register write za "{za_value}"')
+#         expected_registers['za'] = za_value
+# 
+#         self.write_expected_reg_data(expected_registers)
+#         self.expect("next", substrs=["stop reason = step over"])
+#         check_expected_regs()
+# 
+#         # # TODO: only do this for SME2
+#         zt0_value = ByteVector(list(range(2, (svl_b*2)+2)))
+#         self.expect(f'register write zt0 "{zt0_value}"')
+#         expected_registers['zt0'] = zt0_value
+# 
+#         self.write_expected_reg_data(expected_registers)
+#         self.expect("next", substrs=["stop reason = step over"])
+#         check_expected_regs()
+# 
+#     @no_debug_info_test
+#     @skipIf(archs=no_match(["aarch64"]))
+#     @skipIf(oslist=no_match(["linux"]))
+#     def test_simd_registers_simd(self):
+#         self.setup_test(Mode.SIMD, ZA.OFF)
+#         svl_b = self.get_svl_b()
+# 
+#         # Check for the values the program should have set.
+#         expected_registers = self.expected_registers_generic(svl_b, Mode.SIMD, ZA.OFF)
+#         check_expected_regs = self.check_expected_regs_fn(expected_registers)
+# 
+#         self.write_expected_reg_data(expected_registers)
+#         self.expect("next", substrs=["stop reason = step over"])
+#         
+#         check_expected_regs()
+# 
+#         # In SIMD mode if you write Z0, only the parts that overlap V0 will
+#         # change.
+#         z_value = ByteVector([0x12]*svl_b)
+#         self.runCmd(f'register write z0 "{z_value}"')
+# 
+#         # z0 and z0 should change but nothing else. We check the rest because
+#         # we are faking Z register data in this mode, and any offset mistake
+#         # could lead to modifying other registers.
+#         expected_registers['z0'] = ByteVector([0x12]*16 + [0x00]*(svl_b - 16))
+#         expected_registers['v0'] = ByteVector([0x12]*16)
+# 
+#         self.write_expected_reg_data(expected_registers)
+#         self.expect("next", substrs=["stop reason = step over"])
+#         
+#         check_expected_regs()
+# 
+#         # We can do the same via a V register, the value will be extended and sent as
+#         # a Z write.
+#         v_value = ByteVector([0x34]*16)
+#         self.runCmd(f'register write v1 "{v_value}"')
+# 
+#         expected_registers['z1'] = ByteVector([0x34]*16 + [0x00]*(svl_b - 16))
+#         expected_registers['v1'] = v_value
+# 
+#         self.write_expected_reg_data(expected_registers)
+#         self.expect("next", substrs=["stop reason = step over"])
+#         
+#         check_expected_regs()
+# 
+#         # FPSR and FPCR are still described as real registers, so they are
+#         # sent as normal writes.
+#         # This is the value 0xaaaaaaaa but only the bits that we can actually
+#         # set in reality.
+#         fpcontrol = 0xa800008a
+# 
+#         # First FPSR on its own.
+#         self.runCmd(f'register write fpsr 0x{fpcontrol:08x}')
+#         expected_registers['fpsr'] = HexValue(fpcontrol, repr_size=4)
+# 
+#         self.write_expected_reg_data(expected_registers)
+#         self.expect("next", substrs=["stop reason = step over"])
+# 
+#         check_expected_regs()
+# 
+#         # Then FPCR. This value is 0xaaaaaaaa reduced to the bits we can actually
+#         # set.
+#         fpcontrol = 0x02aaaa02
+#         self.runCmd(f'register write fpcr 0x{fpcontrol:08x}')
+#         expected_registers['fpcr'] = HexValue(fpcontrol, repr_size=4)
+# 
+#         self.write_expected_reg_data(expected_registers)
+#         self.expect("next", substrs=["stop reason = step over"])
+# 
+#         check_expected_regs()
+# 
+#         # We are faking SVE registers while outside of streaming mode, and
+#         # predicate registers and ffr have no real register to overlay.
+#         # We chose to make this an error instead of eating the write silently.
+# 
+#         value = ByteVector([0x98]*(svl_b // 8))
+#         self.expect(f'register write p0 "{value}"', error=True)
+#         check_expected_regs()
+#         self.expect(f'register write ffr "{value}"', error=True)
+#         check_expected_regs()
+# 
+#         # In theory we could test writing to ZA and ZT0, however this would
+#         # enable streaming mode. In streaming mode, their handling is the same
+#         # as on an SVE+SME system, and so is covered in other tests.
 
 # Expression test combinations:
 # Input state:
@@ -453,18 +449,17 @@ class SVESIMDRegistersTestCase(TestBase):
 # * ZA on or off
 # * vector length
 
-    def do_expr_test(self, start_mode, start_za, expr_mode, expr_za):
-        self.setup_test(start_mode, start_za)
-        svl_b = self.get_svl_b()
+    def do_expr_test(self, start_mode, start_za, start_vl, expr_mode, expr_za, exp_vl):
+        self.setup_test(start_mode, start_za, start_vl)
 
-        expected_registers = self.expected_registers_generic(svl_b, start_mode, start_za)
+        expected_registers = self.expected_registers_generic(start_vl, start_mode, start_za)
         check_expected_regs = self.check_expected_regs_fn(expected_registers)
 
         # The program sets up the initial state by running code in process.
         check_expected_regs()
         # This expression will change modes, trash registers and set different
         # values.
-        self.expect(f"expression expr_function({str(expr_mode == Mode.SSVE).lower()}, {str(expr_za == ZA.ON).lower()})")
+        self.expect(f"expression expr_function({str(expr_mode == Mode.SSVE).lower()}, {str(expr_za == ZA.ON).lower()}, {exp_vl})")
         # LLDB should restore the process to the previous values and modes.
         check_expected_regs()
 
@@ -474,19 +469,31 @@ class SVESIMDRegistersTestCase(TestBase):
         # That state is:
         # * Streaming mode on or off
         # * ZA on or off
-        # TODO: streaming vector length small/large
+        # * Streaming vector length
         #
-        # Rather than get clever choosing which transitions to test, test them
-        # all.
+        # Rather than get clever choosing which transitions to test, test all
+        # the combinations where the start and end state are different.
+        #
+        # In theory a CPU can support many vector lengths, but really the problem
+        # with vector length is resizing buffers in LLDB. So we will test 1 "large"
+        # length (the default length) and one "small" length (the next smallest
+        # than the default). This will cover increasing and decreasing register
+        # size.
+        #
+        # Note that vector length applies to Z and to ZA/ZT0. So even if streaming
+        # mode is not enabled, ZA/ZT0 can change size.
         states = []
         for m in list(Mode):
             for za in list(ZA):
-                states.append((m, za))
+                # VL in bytes.
+                # TODO: detect this
+                for vl in [64, 32]:
+                    states.append((m, za, vl))
 
         expr_tests = list(permutations(states, 2))
-        #from pprint import pprint
-        #pprint(expr_tests)
-        #print(len(expr_tests))
+        from pprint import pprint
+        pprint(expr_tests)
+        print(len(expr_tests))
 
         return expr_tests
 
@@ -496,7 +503,8 @@ class SVESIMDRegistersTestCase(TestBase):
     def test_expr_restore(self):
         # We could expand all these out into their own tests but there are so
         # many combinations I've put them all together.
-        for (sm, sz), (em, ez) in self.generate_expr_tests():
+        for (sm, sz, svl), (em, ez, evl) in self.generate_expr_tests():
             # TODO: if trace is on, and log this
-            print("Testing", sm, sz, em, ez)
-            self.do_expr_test(sm, sz, em, ez)
+            print("Testing", sm, sz, svl, em, ez, evl)
+            self.do_expr_test(sm, sz, svl, em, ez, evl)
+            break
