@@ -1287,6 +1287,10 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
         // Always use non-streaming SVE here.
         error = WriteRegisterSet(&ioVec, sve_fpsimd_data.size(), NT_ARM_SVE);
 
+        // This seems needed to get proper fake Z size after this write?
+        // TODO: this may make the sve_state change above redundant.
+        ConfigureRegisterContext();
+
         printf("Write NT_ARM_SVE failed?: %d\n", error.Fail());
 
         // Consume register set.
