@@ -490,6 +490,7 @@ class SVESIMDRegistersTestCase(TestBase):
                 for vl in [64, 32]:
                     states.append((m, za, vl))
 
+        # TODO: we should also add ones where we do not change state at all.
         expr_tests = list(permutations(states, 2))
         from pprint import pprint
         pprint(expr_tests)
@@ -504,7 +505,7 @@ class SVESIMDRegistersTestCase(TestBase):
         # We could expand all these out into their own tests but there are so
         # many combinations I've put them all together.
         for (sm, sz, svl), (em, ez, evl) in self.generate_expr_tests():
-            # TODO: if trace is on, and log this
+            # TODO: if trace is on, and log this.
+            # TODO: note which is start and expression state, label parts
             print("Testing", sm, sz, svl, em, ez, evl)
             self.do_expr_test(sm, sz, svl, em, ez, evl)
-            break
