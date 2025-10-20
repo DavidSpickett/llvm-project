@@ -1,8 +1,10 @@
+#include <asm/hwcap.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/auxv.h>
 #include <sys/prctl.h>
 
 #ifndef PR_SME_SET_VL
@@ -13,10 +15,23 @@
 #define PR_SME_GET_VL 64
 #endif
 
-// Doing a syscall exits streaming mode, but we need to use this during an
-// expression in streaming mode. So it's set by main and we reference this
+#define SM_INST(c) asm volatile("msr s0_3_c4_c" #c "_3, xzr")
+#define SMSTART SM_INST(7)
+#define SMSTART_SM SM_INST(3)
+#define SMSTART_ZA SM_INST(5)
+#define SMSTOP SM_INST(6)
+#define SMSTOP_SM SM_INST(2)
+#define SMSTOP_ZA SM_INST(4)
+
+#ifndef HWCAP2_SME2
+#define HWCAP2_SME2 (1UL << 37)
+#endif
+
+// Doing a syscall exits streaming mode, but we need to use these during an
+// expression in streaming mode. So it's set by main and we reference these
 // later.
 int svl_b = 0;
+bool has_sme2 = 0;
 
 #define VREG_NUM 32
 #define VREG_SIZE 16
@@ -194,12 +209,13 @@ void check_register_values(bool streaming, bool za) {
     if (gpr_only_memcmp(expected_za, got_za, svl_b*svl_b) != 0)
       exit(1);
 
-    // TODO: zt0 only if present?
-    uint8_t* got_zt0 = checked_malloc(svl_b*2);
-    asm volatile("str zt0, [%0]" ::"r"(got_zt0));
+    if (has_sme2) {
+      uint8_t* got_zt0 = checked_malloc(svl_b*2);
+      asm volatile("str zt0, [%0]" ::"r"(got_zt0));
 
-    if (gpr_only_memcmp((void*)expected_zt0, (void*)got_zt0, svl_b*2) != 0)
-      exit(1);
+      if (gpr_only_memcmp((void*)expected_zt0, (void*)got_zt0, svl_b*2) != 0)
+        exit(1);
+    }
   }
 }
 
@@ -293,8 +309,7 @@ static void write_sme_regs(int svl_b) {
   }
 #undef MAX_VL_BYTES
 
-  // TODO: detect this
-  /*if (has_zt0)*/ {
+  if (has_sme2) {
 #define ZTO_LEN (512 / 8)
     uint8_t data[ZTO_LEN];
     for (unsigned i = 0; i < ZTO_LEN; ++i)
@@ -348,14 +363,6 @@ static void write_simd_regs() {
   
   write_fp_control();
 }
-
-#define SM_INST(c) asm volatile("msr s0_3_c4_c" #c "_3, xzr")
-#define SMSTART SM_INST(7)
-#define SMSTART_SM SM_INST(3)
-#define SMSTART_ZA SM_INST(5)
-#define SMSTOP SM_INST(6)
-#define SMSTOP_SM SM_INST(2)
-#define SMSTOP_ZA SM_INST(4)
 
 void expr_function(bool streaming, bool za, unsigned svl) {
   // Making this call exits streaming mode so it must be done first.
@@ -424,6 +431,9 @@ int main(int argc, char *argv[]) {
 
   // Making a syscall exits streaming mode, so we have to set this now.
   prctl(PR_SME_SET_VL, svl_b);
+
+  if ((getauxval(AT_HWCAP2) & HWCAP2_SME2))
+    has_sme2 = true;
 
   expected_v_regs = checked_malloc(VREG_NUM * VREG_SIZE);
   expected_fpcr = checked_malloc(sizeof(uint64_t));
