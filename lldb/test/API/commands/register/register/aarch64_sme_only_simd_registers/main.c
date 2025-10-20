@@ -46,7 +46,6 @@ uint8_t* expected_sve_ffr = NULL;
 uint8_t *expected_za = NULL;
 uint8_t *expected_zt0 = NULL;
 uint64_t *expected_svcr = NULL;
-// TODO: might not be able to get this if we have to syscall for it.
 uint64_t *expected_svg = NULL;
 
 static void* checked_malloc(size_t size) {
@@ -141,6 +140,17 @@ void check_register_values(bool streaming, bool za) {
 
   // Can't read SVE registers outside of streaming mode.
   if (streaming) {
+    // Not 0 init because 0 is a valid register value here.
+    uint64_t got_svcr = 0xFFFFFFFFFFFFFFFFull;
+    asm volatile ("mrs %0, svcr"
+                  :"=r"(got_svcr));
+    if (got_svcr != *expected_svcr)
+      exit(1);
+
+    // svg's unit is 8 byte granules.
+    if (*expected_svg != svl_b / 8)
+      exit(1);
+
     // We do not check FFR because we have no way to read or write it while in
     // streaming mode. Both wrffr and store value of ffr require SME_FA64, which
     // requires that you have SVE, which we don't have.

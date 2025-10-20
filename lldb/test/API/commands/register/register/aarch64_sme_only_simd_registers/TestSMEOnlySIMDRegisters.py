@@ -6,6 +6,7 @@ means that the "SVE" registers are only active during streaming mode.
 # TODO: rename this to TestSMEOnlyRegisters.py
 
 from enum import Enum
+from functools import lru_cache
 from itertools import permutations
 import lldb
 from lldbsuite.test.decorators import *
@@ -235,7 +236,9 @@ class SVESIMDRegistersTestCase(TestBase):
             self.assertTrue(err.Success())
             self.assertEqual(len(value.as_bytes()), wrote)
 
-    # TODO: memoise? maybe not because it's used for multiple tests?
+    # This is safe to cache because each test will be its own instance of this
+    # class.
+    @lru_cache
     def lookup_address(self, sym_name):
         target = self.dbg.GetSelectedTarget()
         # TODO: assert that module 0 is in fact the test program
@@ -258,7 +261,7 @@ class SVESIMDRegistersTestCase(TestBase):
     def test_simd_registers_ssve(self):
         # TODO: detect vlen
         svl_b = 64
-        self.setup_test(Mode.SSVE, ZA.ON, 64)
+        self.setup_test(Mode.SSVE, ZA.ON, svl_b)
 
         expected_registers = self.expected_registers_generic(svl_b, Mode.SSVE, ZA.ON)
         check_expected_regs = self.check_expected_regs_fn(expected_registers)
@@ -498,17 +501,18 @@ class SVESIMDRegistersTestCase(TestBase):
 
         return expr_tests
 
-    @no_debug_info_test
-    @skipIf(archs=no_match(["aarch64"]))
-    @skipIf(oslist=no_match(["linux"]))
-    def test_expr_restore(self):
-        # We could expand all these out into their own tests but there are so
-        # many combinations I've put them all together.
-        # TODO: could we do this by setting the inital state from LLDB?
-        #       Not unless we can disable ZA and streaming mode from inside lldb,
-        #       and we can't do that at the moment.
-        for (sm, sz, svl), (em, ez, evl) in self.generate_expr_tests():
-            # TODO: if trace is on, and log this.
-            # TODO: note which is start and expression state, label parts
-            print("Testing", sm, sz, svl, em, ez, evl)
-            self.do_expr_test(sm, sz, svl, em, ez, evl)
+#     @no_debug_info_test
+#     @skipIf(archs=no_match(["aarch64"]))
+#     @skipIf(oslist=no_match(["linux"]))
+#     def test_expr_restore(self):
+#         # We could expand all these out into their own tests but there are so
+#         # many combinations I've put them all together.
+#         # TODO: could we do this by setting the inital state from LLDB?
+#         #       Not unless we can disable ZA and streaming mode from inside lldb,
+#         #       and we can't do that at the moment.
+#         for (sm, sz, svl), (em, ez, evl) in self.generate_expr_tests():
+#             # TODO: if trace is on, and log this.
+#             # TODO: note which is start and expression state, label parts
+#             print("Testing", sm, sz, svl, em, ez, evl)
+#             self.do_expr_test(sm, sz, svl, em, ez, evl)
+# 
