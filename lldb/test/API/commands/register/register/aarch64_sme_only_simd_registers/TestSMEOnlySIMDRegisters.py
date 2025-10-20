@@ -447,12 +447,6 @@ class SVESIMDRegistersTestCase(TestBase):
         # enable streaming mode. In streaming mode, their handling is the same
         # as on an SVE+SME system, and so is covered in other tests.
 
-# Expression test combinations:
-# Input state:
-# * streaming mode on or off
-# * ZA on or off
-# * vector length
-
     def do_expr_test(self, start_mode, start_za, start_vl, expr_mode, expr_za, exp_vl):
         self.setup_test(start_mode, start_za, start_vl)
 
@@ -501,18 +495,17 @@ class SVESIMDRegistersTestCase(TestBase):
 
         return expr_tests
 
-#     @no_debug_info_test
-#     @skipIf(archs=no_match(["aarch64"]))
-#     @skipIf(oslist=no_match(["linux"]))
-#     def test_expr_restore(self):
-#         # We could expand all these out into their own tests but there are so
-#         # many combinations I've put them all together.
-#         # TODO: could we do this by setting the inital state from LLDB?
-#         #       Not unless we can disable ZA and streaming mode from inside lldb,
-#         #       and we can't do that at the moment.
-#         for (sm, sz, svl), (em, ez, evl) in self.generate_expr_tests():
-#             # TODO: if trace is on, and log this.
-#             # TODO: note which is start and expression state, label parts
-#             print("Testing", sm, sz, svl, em, ez, evl)
-#             self.do_expr_test(sm, sz, svl, em, ez, evl)
-# 
+    @no_debug_info_test
+    @skipIf(archs=no_match(["aarch64"]))
+    @skipIf(oslist=no_match(["linux"]))
+    def test_expr_restore(self):
+        # We could expand all these out into their own tests but there are so
+        # many combinations I've put them all together.
+        # TODO: could we do this by setting the inital state from LLDB?
+        #       Not unless we can disable ZA and streaming mode from inside lldb,
+        #       and we can't do that at the moment.
+        for (sm, sz, svl), (em, ez, evl) in self.generate_expr_tests():
+            # TODO: if trace is on, and log this.
+            # TODO: note which is start and expression state, label parts
+            print("Testing", sm, sz, svl, em, ez, evl)
+            self.do_expr_test(sm, sz, svl, em, ez, evl)
