@@ -58,7 +58,6 @@ static void* checked_malloc(size_t size) {
   return ptr;
 }
 
-// TODO: do this using a compiler flag to disable simd?
 static int gpr_only_memcmp(uint8_t* lhs, uint8_t* rhs, size_t len) {
   // Incredibly slow hand written memcmp so we don't have to use
   // the compiler or library version, which would use SIMD registers

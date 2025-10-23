@@ -1,9 +1,11 @@
 """
-Check reading and writing of SIMD registers on a system that only has SME. Which
-means that the "SVE" registers are only active during streaming mode.
+Check handling of registers on an AArch64 Linux system that only has SME. As
+opposed to SVE and SME. Check register access and restoration after expression
+evaluation.
 """
 
 # TODO: rename this to TestSMEOnlyRegisters.py
+# TODO: move to linux folder too, as we added expressions
 
 from enum import Enum
 from pprint import pprint
