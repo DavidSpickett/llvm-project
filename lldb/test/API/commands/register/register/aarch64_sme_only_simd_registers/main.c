@@ -59,7 +59,7 @@ static void* checked_malloc(size_t size) {
 }
 
 static int gpr_only_memcmp(uint8_t* lhs, uint8_t* rhs, size_t len) {
-  // Incredibly slow hand written memcmp so we don't have to use
+  // Hand written memcmp so we don't have to use
   // the compiler or library version, which would use SIMD registers
   // and corrupt registers before we can read them.
   int ret = 0;
