@@ -49,8 +49,7 @@ class HexValue(object):
         self.repr_size = repr_size
 
     def __repr__(self):
-        v = self.value & ((1 << (self.repr_size*8)) - 1)
-        return f"0x{v:0{self.repr_size*2}x}"
+        return f"0x{self.value:0{self.repr_size*2}x}"
 
     def as_bytes(self):
         data = []
