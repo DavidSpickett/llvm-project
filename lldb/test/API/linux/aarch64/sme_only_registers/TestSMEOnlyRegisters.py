@@ -4,9 +4,6 @@ opposed to SVE and SME. Check register access and restoration after expression
 evaluation.
 """
 
-# TODO: rename this to TestSMEOnlyRegisters.py
-# TODO: move to linux folder too, as we added expressions
-
 from enum import Enum
 from pprint import pprint
 from functools import lru_cache
