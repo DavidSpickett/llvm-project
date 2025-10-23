@@ -79,7 +79,7 @@ class SVESIMDRegistersTestCase(TestBase):
     def expected_fpr_control(self):
         return [("fpsr", HexValue(0x50000015, repr_size=4)), ("fpcr", HexValue(0x05551505, repr_size=4))]
 
-    def expected_registers_generic(self, svl_b, mode, za):
+    def expected_registers(self, svl_b, mode, za):
         register_values = []
 
         if mode == Mode.SIMD:
@@ -263,7 +263,7 @@ class SVESIMDRegistersTestCase(TestBase):
 #        svl_b = 64
 #        self.setup_test(Mode.SSVE, ZA.ON, svl_b)
 #
-#        expected_registers = self.expected_registers_generic(svl_b, Mode.SSVE, ZA.ON)
+#        expected_registers = self.expected_registers(svl_b, Mode.SSVE, ZA.ON)
 #        check_expected_regs = self.check_expected_regs_fn(expected_registers)
 #
 #        self.write_expected_reg_data(expected_registers)
@@ -370,7 +370,7 @@ class SVESIMDRegistersTestCase(TestBase):
 #        self.setup_test(Mode.SIMD, ZA.OFF, svl_b)
 #
 #        # Check for the values the program should have set.
-#        expected_registers = self.expected_registers_generic(svl_b, Mode.SIMD, ZA.OFF)
+#        expected_registers = self.expected_registers(svl_b, Mode.SIMD, ZA.OFF)
 #        check_expected_regs = self.check_expected_regs_fn(expected_registers)
 #
 #        self.write_expected_reg_data(expected_registers)
@@ -447,54 +447,6 @@ class SVESIMDRegistersTestCase(TestBase):
 #        # enable streaming mode. In streaming mode, their handling is the same
 #        # as on an SVE+SME system, and so is covered in other tests.
 
-    def do_expr_test(self, start_mode, start_za, start_vl, expr_mode, expr_za, exp_vl):
-        self.setup_test(start_mode, start_za, start_vl)
-
-        expected_registers = self.expected_registers_generic(start_vl, start_mode, start_za)
-        check_expected_regs = self.check_expected_regs_fn(expected_registers)
-
-        # The program sets up the initial state by running code in process.
-        check_expected_regs()
-        # This expression will change modes, trash registers and set different
-        # values.
-        self.expect(f"expression expr_function({str(expr_mode == Mode.SSVE).lower()}, {str(expr_za == ZA.ON).lower()}, {exp_vl})")
-        # LLDB should restore the process to the previous values and modes.
-        check_expected_regs()
-
-    def generate_expr_tests(self):
-        # Each expr test goes from a start state to an expression state, and
-        # back to the start state.
-        # That state is:
-        # * Streaming mode on or off
-        # * ZA on or off
-        # * Streaming vector length
-        #
-        # Rather than get clever choosing which transitions to test, test all
-        # the combinations where the start and end state are different.
-        #
-        # In theory a CPU can support many vector lengths, but really the problem
-        # with vector length is resizing buffers in LLDB. So we will test 1 "large"
-        # length (the default length) and one "small" length (the next smallest
-        # than the default). This will cover increasing and decreasing register
-        # size.
-        #
-        # Note that vector length applies to Z and to ZA/ZT0. So even if streaming
-        # mode is not enabled, ZA/ZT0 can change size.
-        states = []
-        for m in list(Mode):
-            for za in list(ZA):
-                # VL in bytes.
-                # TODO: detect this
-                for vl in [64, 32]:
-                    states.append((m, za, vl))
-
-        # Start with not changing state.
-        expr_tests = [(state, state) for state in states]
-        # Then all combinations of different states.
-        expr_tests.extend(list(permutations(states, 2)))
-
-        return expr_tests
-
     @no_debug_info_test
     @skipIf(archs=no_match(["aarch64"]))
     @skipIf(oslist=no_match(["linux"]))
@@ -536,6 +488,15 @@ class SVESIMDRegistersTestCase(TestBase):
         for (sm, sz, svl), (em, ez, evl) in expr_tests:
             if self.TraceOn():
                 print(f"Testing restore to [mode:{sm} za:{sz} svl:{svl}] from expression state [mode:{em} za:{ez} svl:{evl}]")
-            self.do_expr_test(sm, sz, svl, em, ez, evl)
-            # TODO: hack
-            break
+
+            self.setup_test(sm, sz, svl)
+
+            expected_registers = self.expected_registers(svl, sm, sz)
+            check_expected_regs = self.check_expected_regs_fn(expected_registers)
+
+            # The program sets up the initial state by running code in process.
+            check_expected_regs()
+            # This expression will change modes and set different values.
+            self.expect(f"expression expr_function({str(em == Mode.SSVE).lower()}, {str(ez == ZA.ON).lower()}, {evl})")
+            # LLDB should restore the process to the previous values and modes.
+            check_expected_regs()
