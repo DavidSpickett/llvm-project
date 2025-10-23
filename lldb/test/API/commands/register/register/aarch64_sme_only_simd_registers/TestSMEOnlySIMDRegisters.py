@@ -255,6 +255,31 @@ class SVESIMDRegistersTestCase(TestBase):
         
         return ptr
 
+    def get_svls(self):
+        # This proc file contains the default streaming vector length (in bytes).
+        # It defaults to 32, or the largest vector length. Whichever is smaller.
+        err, retcode, output = self.run_platform_command("cat /proc/sys/abi/sme_default_vector_length")
+        if err.Fail() or retcode != 0:
+            self.skipTest(f"Failed to read sme_default_vector_length: {output}")
+
+        # Content should be a single decimal number.
+        try:
+            default_svl = int(output)
+        except ValueError:
+            # File contained unexpected data.
+            self.skipTest(f"sme_default_vector_length contained unexpected data: {output}")
+
+        # A valid svl is a multiple of 128 bits and a power of 2. We need to find
+        # 2 of them that will work. We could try to set this file to a higher value,
+        # but likely we need root permissions on some machines.
+        # So if the default is 128 bit, assume that's the max, in which case
+        # there is no second svl we can use.
+        if default_svl == 16:
+            self.skipTest(f"Did not find 2 supported streaming vector lengths, default is {default_svl}")
+
+        # The default is something greater than 16. Use it and the next lowest.
+        return (default_svl, default_svl // 2)
+
     @no_debug_info_test
     @skipIf(archs=no_match(["aarch64"]))
     @skipIf(oslist=no_match(["linux"]))
@@ -359,32 +384,6 @@ class SVESIMDRegistersTestCase(TestBase):
         self.write_expected_reg_data(expected_registers)
         self.expect("next", substrs=["stop reason = step over"])
         check_expected_regs()
-
-
-    def get_svls(self):
-        # This proc file contains the default streaming vector length (in bytes).
-        # It defaults to 32, or the largest vector length. Whichever is smaller.
-        err, retcode, output = self.run_platform_command("cat /proc/sys/abi/sme_default_vector_length")
-        if err.Fail() or retcode != 0:
-            self.skipTest(f"Failed to read sme_default_vector_length: {output}")
-
-        # Content should be a single decimal number.
-        try:
-            default_svl = int(output)
-        except ValueError:
-            # File contained unexpected data.
-            self.skipTest(f"sme_default_vector_length contained unexpected data: {output}")
-
-        # A valid svl is a multiple of 128 bits and a power of 2. We need to find
-        # 2 of them that will work. We could try to set this file to a higher value,
-        # but likely we need root permissions on some machines.
-        # So if the default is 128 bit, assume that's the max, in which case
-        # there is no second svl we can use.
-        if default_svl == 16:
-            self.skipTest(f"Did not find 2 supported streaming vector lengths, default is {default_svl}")
-
-        # The default is something greater than 16. Use it and the next lowest.
-        return (default_svl, default_svl // 2)
 
     @no_debug_info_test
     @skipIf(archs=no_match(["aarch64"]))
