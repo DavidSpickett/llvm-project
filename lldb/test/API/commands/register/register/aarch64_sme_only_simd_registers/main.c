@@ -36,6 +36,8 @@ bool has_sme2 = 0;
 #define VREG_NUM 32
 #define VREG_SIZE 16
 
+// Some of these could be statically allocated, but malloc-ing them all makes
+// it simpler to write the Python side of this test.
 uint8_t *expected_v_regs = NULL;
 // These are treated as 32-bit but msr/mrs uses 64-bit values.
 uint64_t *expected_fpcr = NULL;
