@@ -517,6 +517,8 @@ class SVESIMDRegistersTestCase(TestBase):
             check_expected_regs = self.check_expected_regs_fn(expected_registers)
 
             # The program sets up the initial state by running code in process.
+            # In theory we could skip this, but it does give us coverage of
+            # reading registers in all modes.
             check_expected_regs()
             # This expression will change modes and set different values.
             self.expect(f"expression expr_function({str(em == Mode.SSVE).lower()}, {str(ez == ZA.ON).lower()}, {evl})")
