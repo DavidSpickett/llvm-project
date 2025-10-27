@@ -1850,10 +1850,7 @@ void NativeRegisterContextLinux_arm64::ConfigureRegisterContext() {
 
   // If m_sve_state is set to SVEState::Disabled on first stop, code below will
   // be deemed non operational for the lifetime of current process.
-  // TODO: we need a "streaming only" state, otherwise setting disabled here
-  // means we don't recheck it when streaming mode gets enabled.
-
-  if (!m_sve_header_is_valid /*&& m_sve_state != SVEState::Disabled*/) {
+  if (!m_sve_header_is_valid && m_sve_state != SVEState::Disabled) {
     // Systems may have SVE and/or SME. If they are SME only, the SVE regset
     // cannot be read from but the SME one can. If they have both SVE and SME,
     // only the active mode will return valid register data.
