@@ -524,3 +524,5 @@ class SVESIMDRegistersTestCase(TestBase):
             self.expect(f"expression expr_function({str(em == Mode.SSVE).lower()}, {str(ez == ZA.ON).lower()}, {evl})")
             # LLDB should restore the process to the previous values and modes.
             check_expected_regs()
+
+            # TODO: unload target?
