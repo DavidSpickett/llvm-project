@@ -294,45 +294,43 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
     src = (uint8_t *)GetGPRBuffer() + offset;
 
   } else if (IsFPR(reg)) {
-    printf("Reading FPR\n");
-    // TODO: not sure if we should use the FP route for streaming only disabled...
     if (m_sve_state == SVEState::Disabled || m_sve_state == SVEState::StreamingFPSIMD) {
-      // SVE is disabled take legacy route for FPU register access
+      // If we do not have SVE, FP registers are read from the FP register set.
+      // If we only have SVE in streaming mode, but are outside of streaming
+      // mode, they also come from the FP register set.
       error = ReadFPR();
       if (error.Fail())
         return error;
 
-      if (m_sve_state == SVEState::StreamingFPSIMD) {
-        // When we have SME but not SVE, outside of streaming mode, the FP registers
-        // come from the normal FP context. However, because we have told the client
-        // that we only have real SVE registers, an FP registers are just a subset
-        // of those, the offsets of the FP registers are relative to those SVE registers.
-        // We need to override that to work with the actual FP context.
+      if (m_sve_state == SVEState::Disabled) {
+        // When the core only has FP, we have only told the client about FP
+        // registers, so the offsets work as expected.
+        offset = CalculateFprOffset(reg_info);
+      } else {
+        // We take register values from the FP context, but because we're telling
+        // the client that we have SVE registers, the register offsets are set
+        // according to those registers.
         //
+        // We need to extract data according to the layout of the FP registers:
         // struct user_fpsimd_state {
         // 	__uint128_t	vregs[32];
         // 	__u32		fpsr;
         // 	__u32		fpcr;
         // 	__u32		__reserved[2];
         // };
-        const size_t fpsr_offset = 8 * 2 * 32;
+        // TODO: inline this into CalculateFprOffset ?
+        const size_t fpsr_offset = 16 * 32;
         if (reg == GetRegisterInfo().GetRegNumFPSR())
           offset = fpsr_offset;
         else if (reg == GetRegisterInfo().GetRegNumFPCR())
           offset = fpsr_offset + 4;
         else
-          offset = 8 * 2 * (reg - GetRegisterInfo().GetRegNumFPV0());
-      } else {
-        // When we just have an FPU, register offsets are relative to the FPU regset.
-        offset = CalculateFprOffset(reg_info);
+          offset = 16 * (reg - GetRegisterInfo().GetRegNumFPV0());
       }
 
-      printf("reading %s, offset is %u\n", reg_info->name, offset);
       assert(offset < GetFPRSize());
       src = (uint8_t *)GetFPRBuffer() + offset;
     } else {
-      printf("Using SVE/SSVE route...\n");
-
       // SVE or SSVE enabled, we will read and cache SVE ptrace data.
       // In SIMD or Full mode, the data comes from the SVE regset. In streaming
       // mode it comes from the streaming SVE regset.
@@ -380,68 +378,49 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
     if (m_sve_state == SVEState::Disabled || m_sve_state == SVEState::Unknown)
       return Status::FromErrorString("SVE disabled or not supported");
 
-    printf("Read SVE reg %d\n", reg);
-
     if (GetRegisterInfo().IsSVERegVG(reg)) {
       error = ReadSVEHeader();
       if (error.Fail()) {
-        printf("Failed to read VG!\n");
         return error;
       }
 
       sve_vg = GetSVERegVG();
       src = (uint8_t *)&sve_vg;
     } else {
-      printf("Reading other non-vg SVE register %s\n", reg_info->name);
-      // When we only have SME and streaming mode is disabled we cannot read the
-      // streaming mode registers, but LLDB will ask for them since we did list
-      // them in the target XML. It will also ask for them when it needs to read
-      // FP registers as those are described as a subset of the Z registers.
       if (m_sve_state == SVEState::StreamingFPSIMD) {
-        // For predicate registers, just return 0s.
+        // When we only have streaming SVE and we are not in streaming mode,
+        // we cannot reading streaming SVE registers.
+
         if (GetRegisterInfo().IsSVEPReg(reg) || GetRegisterInfo().IsSVERegFFR(reg)) {
+          // For predicate registers, return 0s.
           std::vector<uint8_t> fake_p(reg_info->byte_size, 0);
           reg_value.SetFromMemoryData(*reg_info, &fake_p[0], reg_info->byte_size,
                                       eByteOrderLittle, error);
           return error;
         }
 
-        // For Z registers, use FP as the low 128 bits and zero the rest.
-        // TODO: would it be easier to fake an FPSIMD format FP context and
-        // let the existing code handle it?
+        // Zero extend the 128-bit FP register to Z register size.
         error = ReadFPR();
         if (error.Fail())
           return error;
 
-        uint32_t z_num = reg - GetRegisterInfo().GetRegNumSVEZ0();
-        printf("z_num: %d\n", z_num);
-        uint32_t fp_reg_num = GetRegisterInfo().GetRegNumFPV0() + z_num;
-        // TODO: safe? Even works???
-        const lldb_private::RegisterInfo *fp_reg_info = GetRegisterInfo().GetRegisterInfo() + fp_reg_num;
-        printf("Copying from %s to make Z reg value\n", fp_reg_info->name);
-
-        // The V registers seem to be pointed at the Z registers which makes their
-        // offsets useless. Make some assumptions and calculate it manually:
+        // As we told the client we have Z registers, our own internal offsets
+        // are set as if we were using an SVE context. We need to work out
+        // an offset within the FP context instead:
         // struct user_fpsimd_state {
         // 	__uint128_t	vregs[32];
         // 	__u32		fpsr;
         // 	__u32		fpcr;
         // 	__u32		__reserved[2];
         // };
-        // Note this is Z number not the fp_reg_num that we just use for getting
-        // info.
+        const uint32_t z_num = reg - GetRegisterInfo().GetRegNumSVEZ0();
         offset = z_num * 16;
-        printf("offset: %d\n", offset);
         assert(offset < GetFPRSize());
         src = (uint8_t *)GetFPRBuffer() + offset;
 
+        // Copy from FP into a fake Z value. 
         std::vector<uint8_t> fake_z(reg_info->byte_size, 0);
         std::memcpy(&fake_z[0], src, 16 /* 128 bits */);
-        printf("Fake Z:");
-        for (auto c : fake_z) {
-          printf(" 0x%02x", c);
-        }
-        printf("\n");
         reg_value.SetFromMemoryData(*reg_info, &fake_z[0], reg_info->byte_size,
                                       eByteOrderLittle, error);
 
@@ -1970,7 +1949,6 @@ void NativeRegisterContextLinux_arm64::ConfigureRegisterContext() {
 
 uint32_t NativeRegisterContextLinux_arm64::CalculateFprOffset(
     const RegisterInfo *reg_info) const {
-      printf("CalculateFprOffset: reg_info->byte_offset = %u GetGPRSize() = %lu", reg_info->byte_offset, GetGPRSize());
   return reg_info->byte_offset - GetGPRSize();
 }
 
