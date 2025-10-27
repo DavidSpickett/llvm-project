@@ -717,32 +717,7 @@ Status NativeRegisterContextLinux_arm64::WriteRegister(
       // bits at least, enough to fill an FP V register.
       ::memcpy(dst, reg_value.GetBytes(), 16);
       
-      printf("About to write FPR\n");
-
       return WriteFPR();
-
-      // // TODO: endian is probably wrong here
-      // RegisterValue v_value(llvm::ArrayRef(v_data, 16), eByteOrderLittle);
-
-      // uint32_t z_num = reg - GetRegisterInfo().GetRegNumSVEZ0();
-      // printf("z_num: %d\n", z_num);
-      // // TODO: safe? Even works???
-      // const lldb_private::RegisterInfo *fp_reg_info = GetRegisterInfo().GetRegisterInfo() + fp_reg_num;
-      // assert(fp_reg_info && "FP register info must be valid!");
-      // printf("Writing bottom part of Z register into %s\n", fp_reg_info->name);
-
-      // printf("Writing FP data: ");
-      // for (auto i =0;i<16;++i)
-      //   printf(" 0x%02x", v_data[i]);
-      // printf("\n");
-
-      // // TODO: should *any* call to writeFPR invalidate SVE?
-      // // TODO: move somewhere else? Need to force a re-read after writing FPR.
-      // m_sve_buffer_is_valid = false;
-      // // TODO: needed? safer than sorry...
-      // m_sve_header_is_valid = false;
-
-      // return WriteRegister(fp_reg_info, v_value);
     } else {
       // Target has SVE enabled, we will read and cache SVE ptrace data
       error = ReadAllSVE();
@@ -1521,15 +1496,6 @@ Status NativeRegisterContextLinux_arm64::WriteFPR() {
   // TODO: redundant?
   m_sve_buffer_is_valid = false;
   m_sve_header_is_valid = false;
-
-  printf("WriteRegisterSet NT_FPREGSET\n");
-
-  //uint8_t* data = (uint8_t*)ioVec.iov_base;
-  //printf("Writing this data: ");
-  //for(auto i=0; i<ioVec.iov_len;++i) {
-  //  printf(" 0x%02x", data[i]);
-  //}
-  //printf("\n");
 
   return WriteRegisterSet(&ioVec, GetFPRSize(), NT_FPREGSET);
 }
