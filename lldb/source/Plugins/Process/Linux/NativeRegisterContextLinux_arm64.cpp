@@ -1460,8 +1460,7 @@ Status NativeRegisterContextLinux_arm64::WriteFPR() {
   ioVec.iov_len = GetFPRSize();
 
   m_fpu_is_valid = false;
-
-  // TODO: redundant?
+  // SVE Z registers overlap the FP registers.
   m_sve_buffer_is_valid = false;
   m_sve_header_is_valid = false;
 
