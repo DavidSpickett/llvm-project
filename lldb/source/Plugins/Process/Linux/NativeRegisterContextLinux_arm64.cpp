@@ -1170,11 +1170,6 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
           std::bind(&NativeRegisterContextLinux_arm64::WriteAllSVE, this));
       break;
     case RegisterSetType::FPR: {
-      // TODO: store the sve state as its own thing we can just read directly?
-      // If we only have SSVE then this is a streaming only system, where to leave
-      // streaming mode we must write FPR data to SVE instead, but with a vector
-      // length of 0.
-
       if (!GetRegisterInfo().IsSVEPresent() && GetRegisterInfo().IsSSVEPresent()) {
         // On an SME only system, if we get here then we were outside of streaming
         // mode when the registers were saved. We may be in streaming mode at
