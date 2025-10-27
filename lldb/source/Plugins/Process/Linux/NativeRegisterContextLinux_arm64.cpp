@@ -302,32 +302,7 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
       if (error.Fail())
         return error;
 
-      if (m_sve_state == SVEState::Disabled) {
-        // When the core only has FP, we have only told the client about FP
-        // registers, so the offsets work as expected.
-        offset = CalculateFprOffset(reg_info);
-      } else {
-        // We take register values from the FP context, but because we're telling
-        // the client that we have SVE registers, the register offsets are set
-        // according to those registers.
-        //
-        // We need to extract data according to the layout of the FP registers:
-        // struct user_fpsimd_state {
-        // 	__uint128_t	vregs[32];
-        // 	__u32		fpsr;
-        // 	__u32		fpcr;
-        // 	__u32		__reserved[2];
-        // };
-        // TODO: inline this into CalculateFprOffset ?
-        const size_t fpsr_offset = 16 * 32;
-        if (reg == GetRegisterInfo().GetRegNumFPSR())
-          offset = fpsr_offset;
-        else if (reg == GetRegisterInfo().GetRegNumFPCR())
-          offset = fpsr_offset + 4;
-        else
-          offset = 16 * (reg - GetRegisterInfo().GetRegNumFPV0());
-      }
-
+      offset = CalculateFprOffset(reg_info, m_sve_state == SVEState::StreamingFPSIMD);
       assert(offset < GetFPRSize());
       src = (uint8_t *)GetFPRBuffer() + offset;
     } else {
@@ -568,42 +543,14 @@ Status NativeRegisterContextLinux_arm64::WriteRegister(
 
     return WriteGPR();
   } else if (IsFPR(reg)) {
-    printf("trying to write FPR\n");
-    // TODO: not sure if this route actually works for streamingFPSIMD mode,
-    // the V register offsets are relative to their position in the SVE context,
-    // so the offset calculation does not work.
     if (m_sve_state == SVEState::Disabled || m_sve_state == SVEState::StreamingFPSIMD) {
-      // SVE is not present, or we only have it in streaming mode, and are currently
-      // outside of streaming mode. Take legacy route for FPU register access.
+      // SVE is not present, or we only have it in streaming mode and are currently
+      // outside of streaming mode. Take normal route for FPU register access.
       error = ReadFPR();
       if (error.Fail())
         return error;
 
-      if (m_sve_state == SVEState::StreamingFPSIMD) {
-        // When we have SME but not SVE, outside of streaming mode, the FP registers
-        // come from the normal FP context. However, because we have told the client
-        // that we only have real SVE registers, an FP registers are just a subset
-        // of those, the offsets of the FP registers are relative to those SVE registers.
-        // We need to override that to work with the actual FP context.
-        //
-        // struct user_fpsimd_state {
-        // 	__uint128_t	vregs[32];
-        // 	__u32		fpsr;
-        // 	__u32		fpcr;
-        // 	__u32		__reserved[2];
-        // };
-        const size_t fpsr_offset = 8 * 2 * 32;
-        if (reg == GetRegisterInfo().GetRegNumFPSR())
-          offset = fpsr_offset;
-        else if (reg == GetRegisterInfo().GetRegNumFPCR())
-          offset = fpsr_offset + 4;
-        else
-          offset = 8 * 2 * (reg - GetRegisterInfo().GetRegNumFPV0());
-      } else {
-        // When we just have an FPU, register offsets are relative to the FPU regset.
-        offset = CalculateFprOffset(reg_info);
-      }
-
+      offset = CalculateFprOffset(reg_info, m_sve_state == SVEState::StreamingFPSIMD);
       assert(offset < GetFPRSize());
       dst = (uint8_t *)GetFPRBuffer() + offset;
       ::memcpy(dst, reg_value.GetBytes(), reg_info->byte_size);
@@ -1884,8 +1831,30 @@ void NativeRegisterContextLinux_arm64::ConfigureRegisterContext() {
 }
 
 uint32_t NativeRegisterContextLinux_arm64::CalculateFprOffset(
-    const RegisterInfo *reg_info) const {
-  return reg_info->byte_offset - GetGPRSize();
+    const RegisterInfo *reg_info, bool streaming_fpsimd) const {
+  uint32_t offset = reg_info->byte_offset - GetGPRSize();
+  if (!streaming_fpsimd)
+    return offset;
+        
+  // If we're outside of streaming mode on a streaming only target, the offsets
+  // are relative to an SVE context. We need the offset into the actual FPR
+  // context:
+  // struct user_fpsimd_state {
+  // 	__uint128_t	vregs[32];
+  // 	__u32		fpsr;
+  // 	__u32		fpcr;
+  // 	__u32		__reserved[2];
+  // };
+  const size_t fpsr_offset = 16 * 32;
+  const uint32_t reg = reg_info->kinds[lldb::eRegisterKindLLDB];
+  if (reg == GetRegisterInfo().GetRegNumFPSR())
+    offset = fpsr_offset;
+  else if (reg == GetRegisterInfo().GetRegNumFPCR())
+    offset = fpsr_offset + 4;
+  else
+    offset = 16 * (reg - GetRegisterInfo().GetRegNumFPV0());
+
+  return offset;
 }
 
 uint32_t NativeRegisterContextLinux_arm64::CalculateSVEOffset(
