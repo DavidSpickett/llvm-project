@@ -1174,69 +1174,45 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
       // If we only have SSVE then this is a streaming only system, where to leave
       // streaming mode we must write FPR data to SVE instead, but with a vector
       // length of 0.
-      if (!GetRegisterInfo().IsSVEPresent() && GetRegisterInfo().IsSSVEPresent()) {
-        printf("Writing via FPSIMD NT_ARM_SVE...\n");
-        // On a streaming only system, we will have either saved streaming SVE
-        // registers, or FP registers. If we saved FP, we get here and this means
-        // we were outside of streaming mode when the save was done.
-        
-        // TODO: what if we're still in non-streaming mode at this point? Can
-        // we just write to SVE anyway?
 
-        // If after the save we went into streaming mode, we need to write the FP
-        // data to NT_ARM_SVE to exit streaming mode. Instead of the usuaal FP
-        // context.
-        // We must write in FPSIMD format with a vector length of 0 set.
+      if (!GetRegisterInfo().IsSVEPresent() && GetRegisterInfo().IsSSVEPresent()) {
+        // On an SME only system, if we get here then we were outside of streaming
+        // mode when the registers were saved. We may be in streaming mode at
+        // the current moment, so we need to to exit it.
+        // The kernel allows us to do this by writing FPSIMD format data to
+        // non-streaming SVE registers, with a vector length of 0 set.
+        // We only do this for this one situation, otherwise we would use
+        // the FP register set, or the streaming SVE register set.
         
-        // TODO: less hacky way to do this
-        std::vector<uint8_t> sve_fpsimd_data;
         size_t data_size = sve::ptrace_fpsimd_offset + GetFPRSize();
         // NT_ARM_SVE data must be a multiple of 128 bits, and the FPU data size
-        // is not. Round up to next 128 bit multiple.
+        // is not, round up.
         data_size = (data_size + sve::vq_bytes - 1) / sve::vq_bytes * sve::vq_bytes;
-        sve_fpsimd_data.resize(data_size);
+        std::vector<uint8_t> sve_fpsimd_data(data_size);
 
-        printf("data size: %lu\n", data_size);
-        printf("sizeof(user_sve_header): %lu\n", sizeof(user_sve_header));
-        printf("sve::ptrace_fpsimd_offset: %d\n", sve::ptrace_fpsimd_offset);
-
-        user_sve_header* header = reinterpret_cast<user_sve_header*>(&sve_fpsimd_data[0]);
+        user_sve_header* header = reinterpret_cast<user_sve_header*>(sve_fpsimd_data.data());
         std::memset(header, 0, sizeof(user_sve_header));
         header->size = sve_fpsimd_data.size();
-        // VL = 0 is a special value to tell the process to exit streaming mode.
+        // VL = 0 tells the process to exit streaming mode.
         header->vl = 0;
-        // Writing SIMD format.
         header->flags = sve::ptrace_regs_fpsimd;
+        std::memcpy(&sve_fpsimd_data[sve::ptrace_fpsimd_offset], src, GetFPRSize());
 
-        // Copy in SIMD data
-        uint8_t* dst = &sve_fpsimd_data[sve::ptrace_fpsimd_offset];
-        std::memcpy(dst, src, GetFPRSize());
-
-        // Write to ptrace
-        // TODO: use some utility to do this?
         struct iovec ioVec;
-
-        ioVec.iov_base = &sve_fpsimd_data[0];
+        ioVec.iov_base = sve_fpsimd_data.data();
         ioVec.iov_len = sve_fpsimd_data.size();
 
-        // TODO: needed?
+        // We must always use non-streaming SVE here, even if the system only
+        // has streaming SVE.
         m_fpu_is_valid = false;
-        m_sve_buffer_is_valid = false;
-        m_sve_header_is_valid = false;
-
-        // TODO: this feels bad but I guess we can make this assumption.
-        m_sve_state = SVEState::StreamingFPSIMD;
-
-        // Always use non-streaming SVE here.
         error = WriteRegisterSet(&ioVec, sve_fpsimd_data.size(), NT_ARM_SVE);
 
-        // This seems needed to get proper fake Z size after this write?
-        // TODO: this may make the sve_state change above redundant.
+        // We know it will go into non-streaming mode, but let ConfigureRegisterContext
+        // confirm that. 
+        m_sve_state = SVEState::Unknown;
         ConfigureRegisterContext();
 
-        printf("Write NT_ARM_SVE failed?: %d\n", error.Fail());
-
-        // Consume register set.
+        // Consume FP register set.
         src += GetFPRSize();
       } else {
         error = RestoreRegisters(
