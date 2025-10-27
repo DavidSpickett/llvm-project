@@ -1078,7 +1078,6 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
         *reinterpret_cast<const RegisterSetType *>(src);
     src += sizeof(RegisterSetType);
 
-    printf("Restoring registers of type: %s\n", RegisterSetTypeToString(kind));
     switch (kind) {
     case RegisterSetType::GPR:
       error = RestoreRegisters(
@@ -1123,7 +1122,7 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
         // the current moment, so we need to to exit it.
         // The kernel allows us to do this by writing FPSIMD format data to
         // non-streaming SVE registers, with a vector length of 0 set.
-        // We only do this for this one situation, otherwise we would use
+        // We only do this for this one situation, for anything else we use 
         // the FP register set, or the streaming SVE register set.
         
         size_t data_size = sve::ptrace_fpsimd_offset + GetFPRSize();
@@ -1146,11 +1145,13 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
 
         // We must always use non-streaming SVE here, even if the system only
         // has streaming SVE.
-        m_fpu_is_valid = false;
         error = WriteRegisterSet(&ioVec, sve_fpsimd_data.size(), NT_ARM_SVE);
 
-        // We know it will go into non-streaming mode, but let ConfigureRegisterContext
-        // confirm that. 
+        // Writing FPU, and SVE overlaps FPU.
+        m_fpu_is_valid = false;
+        m_sve_buffer_is_valid = false;
+        m_sve_header_is_valid = false;
+
         m_sve_state = SVEState::Unknown;
         ConfigureRegisterContext();
 
