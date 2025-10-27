@@ -271,13 +271,10 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
   const uint32_t reg = reg_info->kinds[lldb::eRegisterKindLLDB];
 
   if (reg == LLDB_INVALID_REGNUM) {
-    printf("Could not get REGNUM!\n");
     return Status::FromErrorStringWithFormat(
         "no lldb regnum for %s",
         reg_info && reg_info->name ? reg_info->name : "<unknown register>");
   }
-
-  printf("ReadRegister [%-8s] IsGPR: %d IsFPR: %d IsSVE: %d IsSME: %d\n", reg_info->name, IsGPR(reg), IsFPR(reg), IsSVE(reg), IsSME(reg));
 
   uint8_t *src;
   uint32_t offset = LLDB_INVALID_INDEX32;
@@ -594,7 +591,6 @@ Status NativeRegisterContextLinux_arm64::WriteRegister(
       return WriteAllSVE();
     }
   } else if (IsSVE(reg)) {
-    printf("Trying to write sve\n");
     if (m_sve_state == SVEState::Disabled || m_sve_state == SVEState::Unknown) {
       return Status::FromErrorString("SVE disabled or not supported");
     } else if (m_sve_state == SVEState::StreamingFPSIMD) {
@@ -823,7 +819,6 @@ static uint8_t *AddSavedRegistersData(uint8_t *dst, void *src, size_t size) {
 static uint8_t *AddSavedRegisters(uint8_t *dst,
                                   enum RegisterSetType register_set_type,
                                   void *src, size_t size) {
-  printf("Adding saved registers of type: %s\n", RegisterSetTypeToString(register_set_type));
   dst = AddRegisterSetType(dst, register_set_type);
   return AddSavedRegistersData(dst, src, size);
 }
@@ -978,7 +973,6 @@ Status NativeRegisterContextLinux_arm64::ReadAllRegisterValues(
     dst += sizeof(m_sve_state);
     dst = AddSavedRegistersData(dst, GetSVEBuffer(), GetSVEBufferSize());
   } else {
-    printf("Saving FPR registers!\n");
     dst = AddSavedRegisters(dst, RegisterSetType::FPR, GetFPRBuffer(),
                             GetFPRSize());
   }
@@ -1350,8 +1344,6 @@ Status NativeRegisterContextLinux_arm64::WriteGPR() {
 Status NativeRegisterContextLinux_arm64::ReadFPR() {
   Status error;
 
-  printf("ReadFPR: m_fpu_is_valid - %d\n", m_fpu_is_valid);
-
   if (m_fpu_is_valid)
     return error;
 
@@ -1359,10 +1351,7 @@ Status NativeRegisterContextLinux_arm64::ReadFPR() {
   ioVec.iov_base = GetFPRBuffer();
   ioVec.iov_len = GetFPRSize();
 
-  printf("About to read FPR.\n");
   error = ReadRegisterSet(&ioVec, GetFPRSize(), NT_FPREGSET);
-  printf("Got error.Success(): %d\n", error.Success());
-
   if (error.Success())
     m_fpu_is_valid = true;
 
