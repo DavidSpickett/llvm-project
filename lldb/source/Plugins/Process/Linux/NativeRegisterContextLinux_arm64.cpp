@@ -608,20 +608,11 @@ Status NativeRegisterContextLinux_arm64::WriteRegister(
       dst = (uint8_t *)GetFPRBuffer() + offset;
       ::memcpy(dst, reg_value.GetBytes(), reg_info->byte_size);
 
-      printf("Writing this data to FPR:");
-      for (auto i=0; i<16; ++i) {
-        printf(" 0X%02x", *((uint8_t*)reg_value.GetBytes() + i));
-      }
-      printf("\n");
-
-      printf("About to write FPR\n");
-
       return WriteFPR();
     } else {
       // SVE enabled, we will read and cache SVE ptrace data.
       error = ReadAllSVE();
       if (error.Fail()) {
-        printf("Failed to read SVE data\n");
         return error;
       }
 
