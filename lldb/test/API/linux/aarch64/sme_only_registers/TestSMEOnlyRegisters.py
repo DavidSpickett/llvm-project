@@ -490,6 +490,14 @@ class SVESIMDRegistersTestCase(TestBase):
         #
         # Note that vector length applies to Z and to ZA/ZT0. Even if streaming
         # mode is not enabled, ZA/ZT0 can change size.
+        #
+        # These tests take a very long time and in theory we could do them not
+        # by re-running the program but by changing the state via. register
+        # writes. However, some states cannot be accessed by writes done by LLDB
+        # so to keep things simple we handle all states the same way.
+        #
+        # Doing it this way also gives us extra register reading coverage in all
+        # the possible states.
         states = []
         svls = self.get_svls()
         for m in list(Mode):
