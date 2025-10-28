@@ -219,7 +219,7 @@ class SVESIMDRegistersTestCase(TestBase):
                 sym_name = "expected_sve_p"
 
             if sym_name is None:
-                raise RuntimeError(f"Do not know how to write expected values for register {reg}.")
+                raise RuntimeError(f"Do not know how to write expected value for register {reg}.")
 
             address = self.lookup_address(sym_name) + offset
             process = self.dbg.GetSelectedTarget().GetProcess()

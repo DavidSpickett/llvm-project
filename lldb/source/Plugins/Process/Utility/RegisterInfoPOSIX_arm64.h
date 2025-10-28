@@ -15,7 +15,19 @@
 #include "lldb/lldb-private.h"
 #include <map>
 
-enum class SVEState : uint8_t { Unknown, Disabled, FPSIMD, Full, Streaming, StreamingFPSIMD };
+enum class SVEState : uint8_t { 
+  // We have yet to look what features there are.
+  Unknown,
+  // We know that there is no SVE or streaming SVE (SME).
+  Disabled,
+  // We are in non-streaming mode but SVE is not active.
+  FPSIMD,
+  // We are in non-streaming mode and SVE is active.
+  Full,
+  // We are in streaming mode using streaming SVE.
+  Streaming,
+  // We are in non-streaming mode, and only have SVE while in streaming mode.
+  StreamingFPSIMD };
 
 class RegisterInfoPOSIX_arm64
     : public lldb_private::RegisterInfoAndSetInterface {
