@@ -66,9 +66,6 @@ class SVESIMDRegistersTestCase(TestBase):
     def reg_names(self, prefix, count):
         return [f'{prefix}{n}' for n in range(count)]
 
-    def expected_fpr_control(self):
-        return [("fpsr", HexValue(0x50000015, repr_size=4)), ("fpcr", HexValue(0x05551505, repr_size=4))]
-
     def expected_registers(self, svl_b, mode, za):
         register_values = []
 
@@ -78,20 +75,14 @@ class SVESIMDRegistersTestCase(TestBase):
             # V regs are {N <7 0s> N <7 0s>} because we set the bottom element to N
             # where N is 1 + the register index.
             v_values = [ByteVector([n+1] + [0] * 7 + [n+1] + [0] * 7) for n in range(32)]
-            # Would use strict=True but this requires Python 3.10.
-            register_values += list(zip(self.reg_names('v', 32), v_values))
-
-            register_values += self.expected_fpr_control()
 
             # Z regs are {N <7 0s> N <7 0s> <16 more 0s}. First half overlaps a V
             # register, the second half we fake 0s for as there is no real Z register
             # in non-streaming mode.
             z_values = [ByteVector([n+1] + [0] * 7 + [n+1] + [0] * 7 + [0] * (svl_b - 16)) for n in range(32)]
-            register_values += list(zip(self.reg_names('z', 32), z_values))
 
             # P regs are {<4 0s>}, we fake the value.
             p_values = [ByteVector([0]*(svl_b // 8)) for _ in range(16)]
-            register_values += list(zip(self.reg_names('p', 16), p_values))
         else:
             # In streaming mode, Z registers are real and V are the bottom 128
             # bits of the Z registers.
@@ -99,12 +90,8 @@ class SVESIMDRegistersTestCase(TestBase):
             # Streaming SVE registers have their elements set to their number plus 1.
             # So z0 has elements of 0x01, z1 is 0x02 and so on.
             v_values = [ByteVector([n+1]*16) for n in range(32)]
-            register_values += list(zip(self.reg_names('v', 32), v_values))
-
-            register_values += self.expected_fpr_control() 
 
             z_values = [ByteVector([n+1]*svl_b) for n in range(32)]
-            register_values += list(zip(self.reg_names('z', 32), z_values))
 
             # P registers have all emlements set to the same value and that value
             # cycles between 0xff, 0x55, 0x11, 0x01 and 0x00.
@@ -112,7 +99,14 @@ class SVESIMDRegistersTestCase(TestBase):
             for i, v in zip(range(16), cycle([0xff, 0x55, 0x11, 0x01, 0x00])):
                 p_values.append(ByteVector([v]*(svl_b // 8)))
 
-            register_values += list(zip(self.reg_names('p', 16), p_values))
+        # Would use strict=True here but it requires Python 3.10.
+        register_values += list(zip(self.reg_names("v", 32), v_values))
+        register_values += [
+            ("fpsr", HexValue(0x50000015, repr_size=4)),
+            ("fpcr", HexValue(0x05551505, repr_size=4)),
+        ]
+        register_values += list(zip(self.reg_names("z", 32), z_values))
+        register_values += list(zip(self.reg_names("p", 16), p_values))
 
         # ffr is all 0s. In SIMD mode we're faking the value, in streaming mode,
         # use of ffr is illegal so the kernel tells us it's 0s.
