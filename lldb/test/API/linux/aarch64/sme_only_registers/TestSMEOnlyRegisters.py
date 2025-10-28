@@ -63,15 +63,6 @@ class HexValue(object):
 
 
 class SVESIMDRegistersTestCase(TestBase):
-    def skip_if_needed(self, mode):
-        if self.isAArch64SVE():
-            self.skipTest("SVE must not be present outside of streaming mode.")
-
-        if (mode == Mode.SSVE) and not self.isAArch64SME():
-            self.skipTest(
-                "SSVE registers must be supported."
-            )
-
     def reg_names(self, prefix, count):
         return [f'{prefix}{n}' for n in range(count)]
 
@@ -153,9 +144,23 @@ class SVESIMDRegistersTestCase(TestBase):
 
         return dict(register_values)
 
-    def setup_test(self, mode, za, svl):
-        self.skip_if_needed(mode)
+    def check_expected_regs_fn(self, expected_registers):
+        def check_expected_regs():
+            self.expect(
+                f'register read {" ".join(expected_registers.keys())}',
+                substrs=[f"{n} = {v}" for n, v in expected_registers.items()],
+            )
 
+        return check_expected_regs
+
+    def skip_if_not_sme_only(self):
+        if self.isAArch64SVE():
+            self.skipTest("SVE must not be present outside of streaming mode.")
+
+        if not self.isAArch64SME():
+            self.skipTest("SSVE registers must be supported.")
+
+    def setup_test(self, mode, za, svl):
         self.build()
         self.line = line_number("main.c", "// Set a break point here.")
 
@@ -174,12 +179,6 @@ class SVESIMDRegistersTestCase(TestBase):
             STOPPED_DUE_TO_BREAKPOINT,
             substrs=["stop reason = breakpoint 1."],
         )
-
-    def check_expected_regs_fn(self, expected_registers):
-        def check_expected_regs():
-            self.expect(f'register read {" ".join(expected_registers.keys())}',
-                    substrs=[f"{n} = {v}" for n, v in expected_registers.items()])
-        return check_expected_regs
 
     def write_expected_reg_data(self, reg_data):
         # Write expected register values into program memory so it can be
@@ -280,6 +279,8 @@ class SVESIMDRegistersTestCase(TestBase):
     @skipIf(archs=no_match(["aarch64"]))
     @skipIf(oslist=no_match(["linux"]))
     def test_simd_registers_ssve(self):
+        self.skip_if_not_sme_only()
+
         svl_b = self.get_svls()[0]
         self.setup_test(Mode.SSVE, ZA.ON, svl_b)
 
@@ -385,6 +386,8 @@ class SVESIMDRegistersTestCase(TestBase):
     @skipIf(archs=no_match(["aarch64"]))
     @skipIf(oslist=no_match(["linux"]))
     def test_simd_registers_simd(self):
+        self.skip_if_not_sme_only()
+
         svl_b = self.get_svls()[0]
         self.setup_test(Mode.SIMD, ZA.OFF, svl_b)
 
@@ -474,6 +477,8 @@ class SVESIMDRegistersTestCase(TestBase):
         Check that we can restore an intial state after expression evaluation
         leaves us in a different state.
         """
+        self.skip_if_not_sme_only()
+
         # Each test goes from a start state to an expression state, and
         # back to the start state. Those state contains:
         # * Streaming mode on or off
@@ -525,4 +530,4 @@ class SVESIMDRegistersTestCase(TestBase):
             # LLDB should restore the process to the previous values and modes.
             check_expected_regs()
 
-            # TODO: unload target?
+            self.runCmd("process kill")
