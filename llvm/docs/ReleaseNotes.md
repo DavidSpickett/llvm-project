@@ -191,6 +191,14 @@ Changes to LLDB
 * The `show-progress` setting, which became a NOOP with the introduction of the
   statusline, now defaults to off and controls using OSC escape codes to show a
   native progress bar in supporting terminals like Ghostty and ConEmu.
+* LLDB now supports AArch64 Linux systems that only have SME (as opposed to
+  SVE and SME). Prior to this version of LLDB, there was a bug that caused LLDB
+  to crash on startup on these systems
+  ([#138717](https://github.com/llvm/llvm-project/issues/138717)).
+  This affected LLDB versions 18, 19, 20 and 21. 17 and below are not affected.
+  If you are using such a system and cannot change LLDB version, or want to package
+  an affected version in a way that is compatible with these systems, the issue
+  contains details of backports that could be done to fix the affected versions.
 
 Changes to BOLT
 ---------------------------------
