@@ -30,6 +30,7 @@
 
 import argparse
 import github
+import re
 import sys
 from textwrap import dedent
 
@@ -46,32 +47,30 @@ def create_release(repo, release, tag=None, name=None, message=None):
         # assumes that should be how it is laid out on the page. We want GitHub to
         # do the reflowing for us instead.
         #
-        # Once all the atuomatic binary builds have completed, the HTML comments
-        # with UPPERCASE markers in them will be removed to reveal the download
-        # links later. Other lines are surrounded in <!-- --> for release uploaders
-        # to manually uncomment when they upload that package.
+        # In this template are commented out links which will be revealed by uncomment_download_links
+        # after the release binary jobs finish, if it finds that all the files linked on a single
+        # line have all been uploaded.
+        base_url = (
+            f"https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}"
+        )
         message = dedent(
-            """\
+            f"""\
 ## LLVM {release} Release
 
-<!-- AUTOMATIC_DOWNLOAD_LINKS_BEGIN
-* [Linux x86_64](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/LLVM-{release}-Linux-X64.tar.xz) ([signature](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/LLVM-{release}-Linux-X64.tar.xz.jsonl))
-* [Linux Arm64](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/LLVM-{release}-Linux-ARM64.tar.xz) ([signature](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/LLVM-{release}-Linux-ARM64.tar.xz.jsonl))
-AUTOMATIC_DOWNLOAD_LINKS_END -->
-<!-- * [Linux Armv7-a](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/clang+llvm-{release}-armv7a-linux-gnueabihf.tar.gz) ([signature](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/clang+llvm-{release}-armv7a-linux-gnueabihf.tar.gz.sig)) -->
+<!-- DOWNLOAD_LINK * [Linux x86_64]({base_url}/LLVM-{release}-Linux-X64.tar.xz) ([signature]({base_url}/LLVM-{release}-Linux-X64.tar.xz.jsonl)) -->
+<!-- DOWNLOAD_LINK * [Linux Arm64]({base_url}/LLVM-{release}-Linux-ARM64.tar.xz) ([signature]({base_url}/LLVM-{release}-Linux-ARM64.tar.xz.jsonl)) -->
+<!-- DOWNLOAD_LINK * [Linux Armv7-a]({base_url}/clang+llvm-{release}-armv7a-linux-gnueabihf.tar.gz) ([signature]({base_url}/clang+llvm-{release}-armv7a-linux-gnueabihf.tar.gz.sig)) -->
 
-<!-- AUTOMATIC_DOWNLOAD_LINKS_BEGIN
-* [macOS Apple Silicon](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/LLVM-{release}-macOS-ARM64.tar.xz) (ARM64) ([signature](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/LLVM-{release}-macOS-ARM64.tar.xz.jsonl))
-* [macOS Intel](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/LLVM-{release}-macOS-X64.tar.xz) (x86-64) ([signature](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/LLVM-{release}-macOS-X64.tar.xz.jsonl))
-AUTOMATIC_DOWNLOAD_LINKS_END -->
+<!-- DOWNLOAD_LINK * [macOS Apple Silicon]({base_url}/LLVM-{release}-macOS-ARM64.tar.xz) (ARM64) ([signature]({base_url}/LLVM-{release}-macOS-ARM64.tar.xz.jsonl)) -->
+<!-- DOWNLOAD_LINK * [macOS Intel]({base_url}/LLVM-{release}-macOS-X64.tar.xz) (x86-64) ([signature]({base_url}/LLVM-{release}-macOS-X64.tar.xz.jsonl)) -->
 
-<!-- * Windows x64 (64-bit): [installer](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/LLVM-{release}-win64.exe) ([signature](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/LLVM-{release}-win64.exe.sig)), [archive](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/clang+llvm-{release}-x86_64-pc-windows-msvc.tar.xz) ([signature](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/clang+llvm-{release}-x86_64-pc-windows-msvc.tar.xz.sig)) -->
-<!-- * Windows x86 (32-bit): [installer](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/LLVM-{release}-win32.exe) ([signature](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/LLVM-{release}-win32.exe.sig)) -->
-<!-- * Windows on Arm (ARM64): [installer](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/LLVM-{release}-woa64.exe) ([signature](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/LLVM-{release}-woa64.exe.sig)), [archive](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/clang+llvm-{release}-aarch64-pc-windows-msvc.tar.xz) ([signature](https://github.com/llvm/llvm-project/releases/download/llvmorg-{release}/clang+llvm-{release}-aarch64-pc-windows-msvc.tar.xz.sig)) -->
+<!-- DOWNLOAD_LINK * Windows x64 (64-bit):   [installer]({base_url}/LLVM-{release}-win64.exe) ([signature]({base_url}/LLVM-{release}-win64.exe.sig)), [archive]({base_url}/clang+llvm-{release}-x86_64-pc-windows-msvc.tar.xz) ([signature]({base_url}/clang+llvm-{release}-x86_64-pc-windows-msvc.tar.xz.sig)) -->
+<!-- DOWNLOAD_LINK * Windows x86 (32-bit):   [installer]({base_url}/LLVM-{release}-win32.exe) ([signature]({base_url}/LLVM-{release}-win32.exe.sig)) -->
+<!-- DOWNLOAD_LINK * Windows on Arm (ARM64): [installer]({base_url}/LLVM-{release}-woa64.exe) ([signature]({base_url}/LLVM-{release}-woa64.exe.sig)), [archive]({base_url}/clang+llvm-{release}-aarch64-pc-windows-msvc.tar.xz) ([signature]({base_url}/clang+llvm-{release}-aarch64-pc-windows-msvc.tar.xz.sig)) -->
 
-Download links will appear here once builds have completed. <!-- AUTOMATIC_DOWNLOAD_LINKS_PLACEHOLDER -->
+Download links for common platforms will appear above, if they are available. Check the full list of release packages at the bottom of this release page if you do not find a link above.
 
-For any other variants of platform and architecture, check the full list of release packages at the bottom of this release page. If you do not find a release package for your platform, you may be able to find a community built package on the LLVM Discourse forum thread for this release. Remember that these are built by volunteers and may not always be available. If you rely on a platform or configuration that is not one of the defaults, we suggest you use the binaries that your platform provides, or build your own release packages.
+If you do not find a release package for your platform, you may be able to find a community built package on the LLVM Discourse forum thread for this release. Remember that these are built by volunteers and may not always be available. If you rely on a platform or configuration that is not one of the defaults, we suggest you use the binaries that your platform provides, or build your own release packages.
 
 ## Package Types
 
@@ -100,7 +99,7 @@ $ gh attestation verify --repo llvm/llvm-project <package file name>
 $ gh attestation verify --repo llvm/llvm-project <package file name> --bundle <package file name>.jsonl
 (using attestation file on disk)
 ```"""
-        ).format(release=release)
+        )
 
     prerelease = True if "rc" in release else False
 
@@ -115,28 +114,55 @@ def upload_files(repo, release, files):
         print("Done")
 
 
-def uncomment_download_links(repo, release):
-    release = repo.get_release("llvmorg-{}".format(release))
+def uncomment_download_links(repo, release_version):
+    release = repo.get_release("llvmorg-{}".format(release_version))
+
+    # At this point any automatic builds have finished and if
+    # they succeeded, have uploaded their packages and signatures to the assets
+    # of this release.
+    release_assets = set([a.name for a in release.assets])
+    print("Found release assets: ", release_assets)
+    # All links end in <forward slash><something><period><extension>.
+    # There may be more than one per line.
+    filename_pattern = re.compile(
+        r"""
+        (?:\/)    # Literal forward slash to begin the last component of the URL.
+        ([^\)\/]+ # A non-zero number of characters that are not a close bracket
+                  # which comes at the end of the markdown []() link syntax,
+                  # or a forward slash between components of the URL.
+        \.        # Literal period before the final extension (for example the
+                  # .gz in .tar.gz).
+        (xz|jsonl|gz|sig|exe)) # One of the known file extensions that get uploaded.
+        (?:\))    # End of markdown []() for the link.
+        """,
+        re.X,
+    )
 
     new_message = []
-    to_remove = [
-        "AUTOMATIC_DOWNLOAD_LINKS_BEGIN",
-        "AUTOMATIC_DOWNLOAD_LINKS_END",
-        "AUTOMATIC_DOWNLOAD_LINKS_PLACEHOLDER",
-    ]
+    modified = False
     for line in release.body.splitlines():
-        for comment in to_remove:
-            if comment in line:
-                break
-        else:
-            new_message.append(line)
+        if line.startswith("<!-- DOWNLOAD_LINK"):
+            required_files = set(m[0] for m in re.findall(filename_pattern, line))
+            print("Found links to", required_files, "in line:")
+            print(line)
+            # Now we have names like LLVM-X.Y.Z-Linux-X64.tar.xz.
+            if required_files.issubset(release_assets):
+                # They have all been uploaded, reveal the link.
+                line = line.split("DOWNLOAD_LINK")[1].replace("-->", "").strip()
+                modified = True
+                print("All files found in assets, revealing download link.")
+            else:
+                print("Not all files were found. Download link will remain hidden.")
 
-    release.update_release(
-        name=release.title,
-        message="\n".join(new_message),
-        draft=release.draft,
-        prerelease=release.prerelease,
-    )
+        new_message.append(line)
+
+    if modified:
+        release.update_release(
+            name=release.title,
+            message="\n".join(new_message),
+            draft=release.draft,
+            prerelease=release.prerelease,
+        )
 
 
 parser = argparse.ArgumentParser()
