@@ -19,16 +19,12 @@ PlatformSP OptionGroupPlatform::CreatePlatformWithOptions(
     CommandInterpreter &interpreter, const ArchSpec &arch, bool make_selected,
     Status &error, ArchSpec &platform_arch) const {
   PlatformList &platforms = interpreter.GetDebugger().GetPlatformList();
-
   PlatformSP platform_sp;
 
-  if (!m_platform_name.empty()) {
+  if (m_platform_name.empty())
+    platform_sp = platforms.GetOrCreate(arch, {}, &platform_arch, error);
+  else {
     platform_sp = platforms.Create(m_platform_name);
-    if (!platform_sp) {
-      error = Status::FromErrorStringWithFormatv(
-          "unable to find a plug-in for the platform named \"{0}\"",
-          m_platform_name);
-    }
     if (platform_sp) {
       if (platform_arch.IsValid() &&
           !platform_sp->IsCompatibleArchitecture(
@@ -37,25 +33,28 @@ PlatformSP OptionGroupPlatform::CreatePlatformWithOptions(
             "platform '{0}' doesn't support '{1}'",
             platform_sp->GetPluginName(), arch.GetTriple().getTriple());
         platform_sp.reset();
-        return platform_sp;
       }
+    } else {
+      error = Status::FromErrorStringWithFormatv(
+          "unable to find a plug-in for the platform named \"{0}\"",
+          m_platform_name);
     }
-  } else if (arch.IsValid()) {
-    platform_sp = platforms.GetOrCreate(arch, {}, &platform_arch, error);
   }
 
-  if (platform_sp) {
-    if (make_selected)
-      platforms.SetSelectedPlatform(platform_sp);
-    if (!m_os_version.empty())
-      platform_sp->SetOSVersion(m_os_version);
+  if (!platform_sp)
+    return platform_sp;
 
-    if (!m_sdk_sysroot.empty())
-      platform_sp->SetSDKRootDirectory(m_sdk_sysroot);
+  if (make_selected)
+    platforms.SetSelectedPlatform(platform_sp);
 
-    if (!m_sdk_build.empty())
-      platform_sp->SetSDKBuild(m_sdk_build);
-  }
+  if (!m_os_version.empty())
+    platform_sp->SetOSVersion(m_os_version);
+
+  if (!m_sdk_sysroot.empty())
+    platform_sp->SetSDKRootDirectory(m_sdk_sysroot);
+
+  if (!m_sdk_build.empty())
+    platform_sp->SetSDKBuild(m_sdk_build);
 
   return platform_sp;
 }
